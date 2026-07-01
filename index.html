@@ -80,8 +80,7 @@
     }
     .tip-btn:hover { opacity: 0.88; transform: translateY(-1px); }
     .tip-btn:active { transform: scale(0.97); }
-    .tip-btn.kofi { background: #ff5e5b; color: #fff; }
-    .tip-btn.btc  { background: #f7931a; color: #fff; }
+    .tip-btn.btc { background: #f7931a; color: #fff; border: none; cursor: pointer; }
     .tip-qr {
       margin-top: 16px;
       display: none;
@@ -193,9 +192,6 @@
     <div class="tip-wrap">
       <div class="tip-label">Enjoying the games? Buy me a drink 🍺</div>
       <div class="tip-btns">
-        <a class="tip-btn kofi" href="https://ko-fi.com/jaldo" target="_blank" rel="noopener">
-          ☕ Ko-fi
-        </a>
         <button class="tip-btn btc" onclick="toggleQR()">
           ⚡ Bitcoin
         </button>
