@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f0b429">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Card Games">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>F*** the Dealer</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .ftd-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 650px) { .ftd-layout { grid-template-columns: 1fr; } }
+
+    .status-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      text-align: center;
+      min-width: 90px;
+    }
+    .stat-box .stat-val { font-size: 1.3rem; font-weight: 800; color: var(--gold); line-height: 1; margin-bottom: 3px; }
+    .stat-box .stat-lbl { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
+
+    .guess-log {
+      max-height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .log-entry {
+      background: var(--surface2);
+      border-radius: 7px;
+      padding: 9px 13px;
+      font-size: 0.875rem;
+      border-left: 3px solid var(--border);
+    }
+    .log-entry.correct      { border-left-color: var(--green); }
+    .log-entry.wrong        { border-left-color: var(--accent); }
+    .log-entry.dealer-drinks{ border-left-color: var(--gold); }
+
+    .turn-header { text-align: center; margin-bottom: 16px; }
+    .turn-header .guesser-name { font-size: 1.4rem; font-weight: 800; color: var(--text); }
+    .turn-header .dealer-name  { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+
+    .notif.chug {
+      background: rgba(240,180,41,0.15);
+      border-color: var(--gold);
+      margin-top: 10px;
+      animation: pulse-gold 1s ease-in-out 3;
+    }
+    .notif.chug .notif-title { color: var(--gold); }
+    @keyframes pulse-gold {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(240,180,41,0); }
+      50%       { box-shadow: 0 0 0 6px rgba(240,180,41,0.35); }
+    }
+
+    .streak-bar { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+    .streak-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      transition: background 0.2s;
+    }
+    .streak-dot.hit { background: var(--green); border-color: var(--green); }
+
+    /* ── Card board ── */
+    .card-board-outer {
+      background: radial-gradient(ellipse at 50% 40%, #115533 0%, #0a3820 100%);
+      border: 3px solid #0a2e1a;
+      border-radius: 12px;
+      padding: 12px 10px 16px;
+      margin-bottom: 20px;
+      overflow-x: auto;
+    }
+    .board-instruction {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-align: center;
+      margin-bottom: 10px;
+      transition: color 0.2s;
+      color: rgba(255,255,255,0.4);
+    }
+    .board-instruction.active  { color: rgba(255,255,255,0.75); }
+    .board-instruction.hint-higher { color: var(--green);  font-size: 0.95rem; }
+    .board-instruction.hint-lower  { color: var(--accent); font-size: 0.95rem; }
+
+    .card-board { display: flex; gap: 5px; min-width: max-content; margin: 0 auto; }
+
+    /* ── Rank columns ── */
+    .rank-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      width: 44px;
+      border-radius: 6px;
+      transition: background 0.12s, outline 0.12s, opacity 0.2s;
+      padding: 3px 1px 5px;
+    }
+    .rank-col-hdr {
+      font-size: 0.7rem; font-weight: 800;
+      color: rgba(255,255,255,0.7);
+      background: rgba(0,0,0,0.3);
+      border-radius: 3px; padding: 2px 0;
+      text-align: center; width: 100%;
+      transition: color 0.15s, background 0.15s;
+    }
+    .rank-col-hdr.gone { color: rgba(255,255,255,0.18); text-decoration: line-through; }
+
+    /* Clickable: gold hover */
+    .rank-col.clickable { cursor: pointer; }
+    .rank-col.clickable:hover {
+      background: rgba(240,180,41,0.14);
+      outline: 2px solid rgba(240,180,41,0.55);
+    }
+    .rank-col.clickable:hover .rank-col-hdr {
+      color: var(--gold);
+      background: rgba(240,180,41,0.2);
+    }
+    .rank-col.clickable:active { background: rgba(240,180,41,0.22); }
+
+    /* Excluded: faded, no pointer */
+    .rank-col.excluded {
+      opacity: 0.2;
+      pointer-events: none;
+    }
+
+    /* Just-guessed: highlight the column that was picked */
+    .rank-col.just-guessed {
+      outline: 2px solid var(--gold);
+      background: rgba(240,180,41,0.08);
+    }
+    .rank-col.just-guessed .rank-col-hdr { color: var(--gold); }
+
+    .rank-col-stack { position: relative; width: 42px; }
+    .col-card { position: absolute; left: 1px; }
+    .col-card .card {
+      width: 40px !important; height: 56px !important;
+      padding: 3px 4px !important; border-radius: 4px !important;
+    }
+    .col-card .cv       { font-size: 0.62rem !important; }
+    .col-card .cs       { font-size: 0.5rem  !important; }
+    .col-card .card-mid { font-size: 0.95rem !important; }
+    .col-empty-slot {
+      width: 40px; height: 56px;
+      border: 1.5px dashed rgba(255,255,255,0.12);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="topbar-brand" href="index.html">♠ Card <em>Games</em></a>
+  <a class="topbar-back" href="index.html">← Back</a>
+</nav>
+
+<div class="page wide">
+  <div class="page-title">🎯 F*** the Dealer</div>
+  <div class="page-sub">Guess the rank. The dealer stays until 3 players in a row miss both guesses.</div>
+
+  <button class="rules-toggle" onclick="toggleRules(this)">
+    📖 How to Play <span class="arrow">▼</span>
+  </button>
+  <div class="rules-body" id="rules-body">
+    <h3>Setup</h3>
+    <p>One player is the Dealer. Play goes clockwise — the Dealer does not guess.</p>
+
+    <h3>Gameplay</h3>
+    <ol>
+      <li>Click any rank column on the board to guess the top card's rank.</li>
+      <li><strong>Correct on 1st guess:</strong> Dealer drinks 3. Streak resets to 0.</li>
+      <li><strong>Wrong on 1st guess:</strong> Higher or Lower is revealed. Guess again by clicking a valid column.</li>
+      <li><strong>Correct on 2nd guess:</strong> Dealer drinks 1. Streak resets to 0.</li>
+      <li><strong>Wrong on 2nd guess:</strong> Player drinks the difference. Streak advances by 1.</li>
+    </ol>
+
+    <h3>Changing the Dealer</h3>
+    <p>3 consecutive players miss <em>both</em> guesses → Dealer passes the deck clockwise.</p>
+    <p>Deck runs out of cards → Current dealer must <strong>chug their drink</strong>, then deck reshuffles.</p>
+
+    <h3>Rank Values</h3>
+    <p>2–10 face value, J=11, Q=12, K=13, <strong>A=14 (always high)</strong></p>
+  </div>
+
+  <!-- Setup -->
+  <div id="setup-panel" class="panel">
+    <div class="panel-title">Players</div>
+    <div class="setup-form">
+      <div class="player-list" id="player-list">
+        <div class="player-row"><input class="form-input" placeholder="Player 1" value="Player 1"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 2" value="Player 2"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 3" value="Player 3"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 4" value="Player 4"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+      </div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost btn-sm" onclick="addPlayerRow()">+ Add Player</button>
+        <button class="btn btn-gold btn-lg" onclick="startGame()">Start Game →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game -->
+  <div id="game-area" class="hidden">
+    <div class="status-bar">
+      <div class="stat-box"><div class="stat-val" id="stat-cards">52</div><div class="stat-lbl">Cards Left</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-dealer">—</div><div class="stat-lbl">Dealer</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-streak">0/3</div><div class="stat-lbl">Streak</div></div>
+    </div>
+
+    <div class="streak-bar" id="streak-bar">
+      <div class="streak-dot" id="sd-0"></div>
+      <div class="streak-dot" id="sd-1"></div>
+      <div class="streak-dot" id="sd-2"></div>
+    </div>
+
+    <!-- Card board — this IS the guessing interface -->
+    <div class="card-board-outer">
+      <div class="board-instruction active" id="board-instruction">Click a rank to guess</div>
+      <div class="card-board" id="card-board"></div>
+    </div>
+
+    <div class="ftd-layout">
+      <!-- Left: turn info + outcome -->
+      <div>
+        <div class="turn-header">
+          <div class="guesser-name" id="guesser-name"></div>
+          <div class="dealer-name"  id="dealer-label"></div>
+        </div>
+
+        <div class="notif hidden" id="outcome-box">
+          <div class="notif-title" id="outcome-title"></div>
+          <div id="outcome-desc"></div>
+        </div>
+
+        <div class="notif chug hidden" id="chug-banner">
+          <div class="notif-title">🍺 DECK EMPTY — DEALER CHUGS!</div>
+          <div id="chug-desc"></div>
+        </div>
+
+        <div class="mt-16 hidden" id="next-btn-area">
+          <button class="btn btn-gold btn-lg w-full" onclick="nextTurn()">Next Player →</button>
+        </div>
+      </div>
+
+      <!-- Right: log -->
+      <div>
+        <div class="panel">
+          <div class="panel-title">Round Log</div>
+          <div class="guess-log" id="guess-log">
+            <div class="text-muted text-sm">No rounds yet…</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost w-full" onclick="resetGame()">New Game</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="deck.js"></script>
+<script>
+let deck       = [];
+let players    = [];
+let dealerIdx  = 0;
+let guesserIdx = 1;
+let streak     = 0;
+let phase      = 'first';   // 'first' | 'second' | 'done'
+let currentCard = null;
+let firstGuess  = null;
+let secondGuessConstraint = null; // {direction, firstRank}
+let logEntries  = [];
+let drawnCards  = [];
+let lastDrawnCard = null;
+let justGuessedRank = null; // column to highlight after a guess
+let deckExhausted = false;
+
+const RANK_ORDER = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+
+// Ace is always high in FTD
+function ftdRank(value) {
+  return value === 'A' ? 14 : VALUE_RANKS[value];
+}
+
+function updateStreakDisplay() {
+  document.getElementById('stat-streak').textContent = `${streak}/3`;
+  for (let i = 0; i < 3; i++) {
+    document.getElementById(`sd-${i}`).className = `streak-dot${i < streak ? ' hit' : ''}`;
+  }
+}
+
+// ── Board rendering ──
+function renderCardBoard() {
+  const board = document.getElementById('card-board');
+  board.innerHTML = RANK_ORDER.map(rank => {
+    const drawn  = drawnCards.filter(c => c.value === rank);
+    const allGone = drawn.length === 4;
+    const stackH  = drawn.length === 0 ? 56 : drawn.length * 13 + 56;
+
+    // Column state
+    let cls = 'rank-col';
+    let handler = '';
+
+    if (phase === 'first' && !allGone) {
+      cls += ' clickable';
+      handler = `onclick="onFirstGuess('${rank}')"`;
+    } else if (phase === 'second') {
+      const excl = allGone
+        || rank === firstGuess
+        || (secondGuessConstraint && isExcluded(rank, secondGuessConstraint));
+      if (excl) {
+        cls += ' excluded';
+      } else {
+        cls += ' clickable';
+        handler = `onclick="onSecondGuess('${rank}')"`;
+      }
+    }
+
+    if (rank === justGuessedRank) cls += ' just-guessed';
+
+    // Card stack
+    let cardsHTML = drawn.length === 0
+      ? `<div class="col-empty-slot"></div>`
+      : drawn.map((c, i) => {
+          const isNew = lastDrawnCard && c.id === lastDrawnCard.id;
+          return `<div class="col-card" style="top:${i * 13}px">${cardHTML(c, isNew ? 'flipped-reveal' : '')}</div>`;
+        }).join('');
+
+    return `<div class="${cls}" ${handler}>
+      <div class="rank-col-hdr${allGone ? ' gone' : ''}">${rank}</div>
+      <div class="rank-col-stack" style="height:${stackH}px">${cardsHTML}</div>
+    </div>`;
+  }).join('');
+}
+
+function setBoardInstruction(text, mode = 'active') {
+  const el = document.getElementById('board-instruction');
+  el.textContent = text;
+  el.className = `board-instruction ${mode}`;
+}
+
+function isExcluded(value, { direction, firstRank }) {
+  const r = ftdRank(value);
+  if (direction === 'higher') return r <= firstRank;
+  if (direction === 'lower')  return r >= firstRank;
+  return false;
+}
+
+// ── Setup ──
+function startGame() {
+  const names = readPlayerNames();
+  players = names.map(name => ({ name }));
+  if (players.length < 2) { alert('Need at least 2 players.'); return; }
+  saveRoster(names);
+
+  deck = shuffle(createDeck());
+  dealerIdx = 0; guesserIdx = 1; streak = 0;
+  logEntries = []; drawnCards = []; lastDrawnCard = null;
+
+  document.getElementById('setup-panel').classList.add('hidden');
+  document.getElementById('game-area').classList.remove('hidden');
+  renderCardBoard();
+  beginTurn();
+}
+
+function beginTurn() {
+  phase = 'first';
+  currentCard = null;
+  firstGuess = null;
+  secondGuessConstraint = null;
+  justGuessedRank = null;
+  lastDrawnCard = null;
+
+  document.getElementById('outcome-box').classList.add('hidden');
+  document.getElementById('chug-banner').classList.add('hidden');
+  document.getElementById('next-btn-area').classList.add('hidden');
+
+  document.getElementById('stat-cards').textContent  = deck.length;
+  document.getElementById('stat-dealer').textContent = players[dealerIdx].name;
+  document.getElementById('stat-streak').textContent = `${streak}/3`;
+
+  for (let i = 0; i < 3; i++) {
+    document.getElementById(`sd-${i}`).className = `streak-dot${i < streak ? ' hit' : ''}`;
+  }
+
+  document.getElementById('guesser-name').textContent = `${players[guesserIdx].name}'s turn`;
+  document.getElementById('dealer-label').textContent  = `Dealer: ${players[dealerIdx].name}`;
+
+  setBoardInstruction('Click a rank to guess');
+  renderCardBoard();
+}
+
+// ── Guessing ──
+function onFirstGuess(rank) {
+  if (phase !== 'first' || !deck.length) return;
+
+  currentCard = deck.pop();
+  deckExhausted = deck.length === 0;
+  firstGuess  = rank;
+  justGuessedRank = rank;
+
+  document.getElementById('stat-cards').textContent = deck.length;
+
+  if (rank === currentCard.value) {
+    // ✅ Correct 1st guess — reveal card now, streak resets
+    streak = 0;
+    updateStreakDisplay();
+    phase = 'done';
+    lastDrawnCard = currentCard;
+    drawnCards.push(currentCard);
+    renderCardBoard();
+
+    showOutcome('success', '✅ Correct!', `${players[dealerIdx].name} drinks 3!`);
+    addLog('correct', `${players[guesserIdx].name} guessed ${rank} — correct! Dealer drinks 3.`);
+    showChugIfNeeded();
+    setBoardInstruction('');
+    document.getElementById('next-btn-area').classList.remove('hidden');
+  } else {
+    // ❌ Wrong 1st guess — show hint, wait for 2nd (don't reveal card yet)
+    const dir = ftdRank(currentCard.value) > ftdRank(rank) ? 'higher' : 'lower';
+    secondGuessConstraint = { direction: dir, firstRank: ftdRank(rank) };
+    phase = 'second';
+    renderCardBoard(); // card not in drawnCards yet — won't appear on board
+
+    const hintText = dir === 'higher' ? '↑ HIGHER — guess again' : '↓ LOWER — guess again';
+    const hintMode = dir === 'higher' ? 'hint-higher' : 'hint-lower';
+    setBoardInstruction(hintText, hintMode);
+    addLog('wrong', `${players[guesserIdx].name} guessed ${rank} — wrong. Hint: ${dir.toUpperCase()}`);
+  }
+}
+
+function onSecondGuess(rank) {
+  if (phase !== 'second') return;
+
+  justGuessedRank = rank;
+  phase = 'done';
+  // Reveal the card on the board now that the 2nd guess is locked in
+  lastDrawnCard = currentCard;
+  drawnCards.push(currentCard);
+  renderCardBoard();
+  setBoardInstruction('');
+
+  if (rank === currentCard.value) {
+    // ✅ Correct 2nd guess — streak resets
+    streak = 0;
+    updateStreakDisplay();
+    showOutcome('success', '✅ Correct on 2nd try!', `${players[dealerIdx].name} drinks 1.`);
+    addLog('correct', `${players[guesserIdx].name} guessed ${rank} on 2nd try — dealer drinks 1.`);
+  } else {
+    // ❌ Wrong 2nd guess — both guesses missed, streak advances
+    streak++;
+    updateStreakDisplay();
+    const diff = Math.abs(ftdRank(currentCard.value) - ftdRank(rank));
+    if (streak >= 3) {
+      showOutcome('danger', `❌ Wrong! 3 in a row!`, `${players[guesserIdx].name} drinks ${diff}. ${players[dealerIdx].name} PASSES THE DECK!`);
+      addLog('dealer-drinks', `3 consecutive both-wrong — dealer changes! ${players[guesserIdx].name} drinks ${diff}.`);
+    } else {
+      showOutcome('danger', '❌ Wrong again!', `${players[guesserIdx].name} drinks ${diff} (guessed ${rank}, was ${currentCard.value}).`);
+      addLog('wrong', `${players[guesserIdx].name} guessed ${rank} — wrong again. Drinks ${diff}.`);
+    }
+  }
+
+  showChugIfNeeded();
+  document.getElementById('next-btn-area').classList.remove('hidden');
+}
+
+// ── Advance ──
+function nextTurn() {
+  if (streak >= 3) {
+    dealerIdx  = (dealerIdx + 1) % players.length;
+    streak     = 0;
+    guesserIdx = (dealerIdx + 1) % players.length;
+    addLog('dealer-drinks', `New dealer: ${players[dealerIdx].name}`);
+  } else {
+    do { guesserIdx = (guesserIdx + 1) % players.length; }
+    while (guesserIdx === dealerIdx);
+  }
+
+  if (deck.length === 0) {
+    deck = shuffle(createDeck());
+    drawnCards = [];
+    deckExhausted = false;
+    addLog('dealer-drinks', 'Deck reshuffled — board cleared.');
+  }
+
+  beginTurn();
+}
+
+function showChugIfNeeded() {
+  const banner = document.getElementById('chug-banner');
+  if (deckExhausted) {
+    document.getElementById('chug-desc').textContent =
+      `${players[dealerIdx].name} must finish their drink — the deck is empty!`;
+    banner.classList.remove('hidden');
+    addLog('dealer-drinks', `🍺 Deck empty — ${players[dealerIdx].name} chugs!`);
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+function showOutcome(type, title, desc) {
+  const box = document.getElementById('outcome-box');
+  box.className = `notif ${type}`;
+  box.classList.remove('hidden');
+  document.getElementById('outcome-title').textContent = title;
+  document.getElementById('outcome-desc').textContent  = desc;
+}
+
+function addLog(type, msg) {
+  logEntries.unshift({ type, msg });
+  document.getElementById('guess-log').innerHTML = logEntries
+    .map(e => `<div class="log-entry ${e.type}">${e.msg}</div>`).join('');
+}
+
+function resetGame() {
+  document.getElementById('setup-panel').classList.remove('hidden');
+  document.getElementById('game-area').classList.add('hidden');
+}
+
+restoreRoster();
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

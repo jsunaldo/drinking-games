@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f0b429">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Card Games">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>King's Cup</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Kings rules reference grid ── */
+    .kings-rules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .kings-rule-item {
+      display: flex; gap: 10px; align-items: flex-start;
+      background: var(--surface2); border-radius: 7px; padding: 8px 11px;
+    }
+    .kings-rule-value { font-weight: 800; color: var(--gold); min-width: 28px; font-size: 1rem; }
+    .kings-rule-text  { font-size: 0.85rem; color: var(--muted); line-height: 1.4; }
+    .kings-rule-name  { font-weight: 700; color: var(--text); display: block; margin-bottom: 1px; }
+
+    /* ── Game header bar ── */
+    .kings-header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .turn-display {
+      flex: 1; min-width: 160px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 18px;
+    }
+    .turn-name { font-size: 1.1rem; font-weight: 800; color: var(--gold); }
+    .turn-sub  { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Kings tracker ── */
+    .kings-tracker { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .king-slot {
+      width: 42px; height: 58px;
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; transition: all 0.3s;
+    }
+    .king-slot.filled { border-color: var(--accent); background: rgba(231,76,60,0.1); }
+    .king-slot.fourth { border-color: var(--gold); background: rgba(240,180,41,0.15); animation: kpulse 1s infinite; }
+    @keyframes kpulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(240,180,41,0.4); }
+      50%      { box-shadow: 0 0 0 8px rgba(240,180,41,0); }
+    }
+
+    /* ── Circle table ── */
+    .circle-table-outer { display: flex; justify-content: center; margin: 0 0 18px; }
+    .circle-table {
+      position: relative;
+      background: radial-gradient(ellipse at 50% 50%, #115533 0%, #0a3820 100%);
+      border: 3px solid #0a2e1a;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Card slots in the circle ── */
+    .cc-slot {
+      position: absolute;
+      left: 50%; top: 50%;
+    }
+    .cc-slot .card {
+      position: absolute;
+      top: 0; left: 0;
+      border-radius: 4px !important;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    /* Face-down undrawn: clickable & hoverable */
+    .cc-slot.undrawn { cursor: pointer; z-index: 2; }
+    .cc-slot.undrawn:hover { z-index: 50; }
+    .cc-slot.undrawn:hover .card {
+      transform: scale(1.14) !important;
+      box-shadow: 0 0 0 2px var(--gold), 0 0 16px rgba(240,180,41,0.5) !important;
+    }
+    /* Already drawn: not interactive */
+    .cc-slot.drawn { cursor: default; z-index: 1; pointer-events: none; }
+    /* Inactive face-down: no hover, no pointer (card already flipped this turn) */
+    .cc-slot.inactive { cursor: default; z-index: 1; pointer-events: none; }
+    /* Just-flipped card: gold outline — sits above everything including hover */
+    .cc-slot.just-drawn { z-index: 60; }
+    .cc-slot.just-drawn .card {
+      box-shadow: 0 0 0 3px var(--gold), 0 0 20px rgba(240,180,41,0.55) !important;
+    }
+
+    /* ── Red Solo Cup ── */
+    .solo-cup {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20; pointer-events: none;
+      display: flex; flex-direction: column; align-items: center;
+      filter: drop-shadow(0 6px 18px rgba(0,0,0,0.75));
+    }
+    .cup-rim {
+      width: 70px; height: 10px;
+      background: linear-gradient(180deg, #f24444 0%, #c21212 100%);
+      border-radius: 5px 5px 0 0;
+    }
+    .cup-body {
+      width: 70px; height: 92px;
+      background: linear-gradient(160deg, #e82a2a 0%, #bf1111 55%, #960a0a 100%);
+      clip-path: polygon(10% 0%, 90% 0%, 75% 100%, 25% 100%);
+      position: relative; overflow: hidden;
+    }
+    .cup-body::before { /* horizontal ribs */
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        transparent, transparent 13px,
+        rgba(255,255,255,0.12) 13px, rgba(255,255,255,0.12) 15px
+      );
+    }
+    .cup-body::after { /* highlight streak */
+      content: '';
+      position: absolute;
+      left: 16%; top: 6%; width: 9%; height: 82%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.44), rgba(255,255,255,0.06));
+      border-radius: 3px;
+    }
+    .cup-base {
+      width: 40px; height: 7px;
+      background: linear-gradient(180deg, #8c0909, #620606);
+      border-radius: 0 0 5px 5px;
+    }
+
+    /* ── Result card ── */
+    .rule-display {
+      background: var(--surface);
+      border: 2px solid var(--gold);
+      border-radius: 12px;
+      padding: 18px 22px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .rule-drawn-lbl  { font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+    .rule-name-big   { font-size: 1.6rem; font-weight: 800; color: var(--gold); margin-bottom: 6px; }
+    .rule-desc-text  { color: var(--text); font-size: 0.95rem; line-height: 1.6; }
+
+    /* ── Active rules banner ── */
+    .rules-banner {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px;
+      font-size: 0.875rem; color: var(--muted);
+      margin-bottom: 12px; max-height: 120px; overflow-y: auto;
+    }
+    .rules-banner .rule-row { margin-bottom: 4px; }
+    .rules-banner .rule-row:last-child { margin-bottom: 0; }
+
+    .cards-remaining {
+      text-align: center; font-size: 0.8rem;
+      color: var(--muted); margin-bottom: 6px;
+    }
+
+    @media (max-width: 540px) {
+      .kings-header { flex-direction: column; align-items: stretch; }
+      .king-slot    { width: 36px; height: 50px; font-size: 1.1rem; }
+    }
+
+    /* ── House-rule suggestions ── */
+    .rule-sug-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 12px 0 8px;
+    }
+    .rule-suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .rule-sug-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 13px;
+      font-size: 0.82rem;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .rule-sug-chip:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+      background: rgba(240,180,41,0.08);
+    }
+    .rule-sug-chip:active { transform: scale(0.96); }
+
+    /* ── King rule toggle (setup) ── */
+    .king-rule-btn { flex: 1; }
+    .king-rule-btn.active {
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      background: rgba(240,180,41,0.12);
+    }
+
+    /* ── Draw history ── */
+    .draw-log {
+      max-height: 240px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .dl-entry {
+      background: var(--surface2);
+      border-radius: 6px;
+      padding: 7px 11px;
+      font-size: 0.82rem;
+      border-left: 3px solid var(--border);
+      line-height: 1.4;
+    }
+    .dl-entry.king { border-left-color: var(--gold); }
+    .dl-entry.role { border-left-color: var(--blue); }
+
+    /* ── 4th King overlay ── */
+    .king-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      overflow: hidden;
+    }
+    .king-overlay-card {
+      position: relative;
+      z-index: 2;
+      background: var(--surface);
+      border: 3px solid var(--gold);
+      border-radius: 18px;
+      padding: 42px 48px;
+      text-align: center;
+      max-width: 420px;
+      margin: 20px;
+      box-shadow: 0 0 60px rgba(240,180,41,0.35);
+    }
+    .ko-icon  { font-size: 4.5rem; line-height: 1; margin-bottom: 10px; animation: koShake 0.5s ease-in-out infinite; }
+    .ko-title {
+      font-size: 2.4rem; font-weight: 900; color: var(--gold);
+      letter-spacing: -1px; margin-bottom: 10px;
+      animation: koPulse 0.8s ease-in-out infinite;
+    }
+    .ko-desc  { color: var(--text); font-size: 1.05rem; line-height: 1.6; margin-bottom: 26px; }
+    @keyframes koShake {
+      0%,100% { transform: rotate(-6deg); }
+      50%      { transform: rotate(6deg); }
+    }
+    @keyframes koPulse {
+      0%,100% { transform: scale(1); }
+      50%      { transform: scale(1.06); }
+    }
+    .king-confetti { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+    .king-confetti span {
+      position: absolute;
+      top: -8%;
+      font-size: 1.4rem;
+      animation: koFall linear forwards;
+    }
+    @keyframes koFall {
+      to { transform: translateY(115vh) rotate(720deg); opacity: 0.7; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="topbar-brand" href="index.html">♠ Card <em>Games</em></a>
+  <a class="topbar-back" href="index.html">← Back</a>
+</nav>
+
+<div class="page">
+  <div class="page-title">👑 King's Cup</div>
+  <div class="page-sub">Click any face-down card around the cup to flip it and follow the rule.</div>
+
+  <button class="rules-toggle" onclick="toggleRules(this)">
+    📖 How to Play &amp; Card Rules <span class="arrow">▼</span>
+  </button>
+  <div class="rules-body" id="rules-body">
+    <h3>Setup</h3>
+    <p>All 52 cards are spread face-down in a circle around the red cup. Players sit around the table and take turns clockwise.</p>
+
+    <h3>Taking a Turn</h3>
+    <p>Click any face-down card in the circle to flip it and reveal its rule. Follow the rule, then pass to the next player.</p>
+
+    <h3>Card Rules</h3>
+    <div class="kings-rules-grid" id="rules-grid"></div>
+
+    <h3>Kings</h3>
+    <p>Every King drawn = the drawer makes a new house rule everyone must follow for the rest of the game. Anyone who breaks a rule drinks.</p>
+    <p id="king-rule-note">The player who draws the <strong>4th King</strong> must chug a full new beer.</p>
+  </div>
+
+  <!-- ── Setup ── -->
+  <div id="setup-panel" class="panel">
+    <div class="panel-title">Players</div>
+    <div class="setup-form">
+      <div class="player-list" id="player-list">
+        <div class="player-row">
+          <input class="form-input" placeholder="Player 1" value="Player 1"/>
+          <button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button>
+        </div>
+        <div class="player-row">
+          <input class="form-input" placeholder="Player 2" value="Player 2"/>
+          <button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button>
+        </div>
+        <div class="player-row">
+          <input class="form-input" placeholder="Player 3" value="Player 3"/>
+          <button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:14px">
+        <label class="form-label">4th King Rule</label>
+        <div class="flex gap-8">
+          <button class="btn btn-surface king-rule-btn" id="kr-beer" onclick="setKingRule('beer')">🍺 Chug a new beer</button>
+          <button class="btn btn-surface king-rule-btn" id="kr-cup"  onclick="setKingRule('cup')">🥤 Drink the center cup</button>
+        </div>
+      </div>
+      <div class="flex gap-8">
+        <button class="btn btn-ghost btn-sm" onclick="addPlayerRow()">+ Add Player</button>
+        <button class="btn btn-gold btn-lg" onclick="startGame()">Deal the Cards →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Game ── -->
+  <div id="game-area" class="hidden">
+
+    <!-- Turn + kings tracker -->
+    <div class="kings-header">
+      <div class="turn-display">
+        <div class="turn-name" id="turn-name"></div>
+        <div class="turn-sub"  id="turn-sub">Click any face-down card to flip it.</div>
+      </div>
+      <div class="kings-tracker">
+        <div class="king-slot" id="ks-0">♛</div>
+        <div class="king-slot" id="ks-1">♛</div>
+        <div class="king-slot" id="ks-2">♛</div>
+        <div class="king-slot" id="ks-3">♛</div>
+      </div>
+    </div>
+
+    <!-- Active roles (Question Master / Mates) -->
+    <div id="roles-banner" class="rules-banner hidden"></div>
+
+    <!-- Active house rules -->
+    <div id="rules-banner" class="rules-banner hidden">
+      <strong>Active House Rules:</strong>
+      <div id="rules-list"></div>
+    </div>
+
+    <div class="cards-remaining" id="cards-remaining"></div>
+
+    <!-- Circle table -->
+    <div class="circle-table-outer">
+      <div class="circle-table" id="circle-table"></div>
+    </div>
+
+    <!-- Flipped card result -->
+    <div class="rule-display hidden" id="rule-display">
+      <div class="rule-drawn-lbl" id="rule-drawn"></div>
+      <div class="rule-name-big"  id="rule-name"></div>
+      <div class="rule-desc-text" id="rule-desc"></div>
+    </div>
+
+    <!-- King: enter house rule -->
+    <div class="panel hidden" id="rule-maker">
+      <div class="panel-title" id="rule-maker-title">Make a House Rule</div>
+      <div class="flex gap-8">
+        <input class="form-input" id="rule-input" placeholder="Type your own rule…"/>
+        <button class="btn btn-primary" onclick="addRule()">Add Rule</button>
+      </div>
+      <div class="rule-sug-label">…or tap a suggestion</div>
+      <div class="rule-suggestions" id="rule-suggestions"></div>
+    </div>
+
+    <!-- 8: pick a mate -->
+    <div class="panel hidden" id="mate-picker">
+      <div class="panel-title" id="mate-picker-title">Pick Your Mate</div>
+      <div class="flex gap-8 flex-wrap" id="mate-buttons"></div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="flex gap-12 items-center" style="justify-content:center; margin: 8px 0 24px;">
+      <button class="btn btn-gold btn-lg hidden" id="next-turn-btn" onclick="advanceTurn()"></button>
+      <button class="btn btn-ghost" onclick="resetGame()">New Game</button>
+    </div>
+
+    <!-- Draw history -->
+    <div class="panel">
+      <div class="panel-title">Draw History</div>
+      <div class="draw-log" id="draw-log">
+        <div class="text-muted text-sm">No cards drawn yet…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 4th King overlay -->
+<div class="king-overlay hidden" id="king-overlay">
+  <div class="king-confetti" id="king-confetti"></div>
+  <div class="king-overlay-card">
+    <div class="ko-icon">👑</div>
+    <div class="ko-title">4TH KING!</div>
+    <div class="ko-desc" id="ko-desc"></div>
+    <button class="btn btn-gold btn-lg" onclick="dismissKingOverlay()">🍻 Done!</button>
+  </div>
+</div>
+
+<script src="deck.js"></script>
+<script>
+const KINGS_RULES = {
+  'A':  { name: 'Waterfall 🌊', desc: 'Everyone starts drinking at the same time. You cannot stop until the person to your left stops. Starting with the card drawer.' },
+  '2':  { name: 'You 👉',        desc: 'Point at anyone — that person takes 2 drinks.' },
+  '3':  { name: 'Me 🙋',         desc: 'You drew it, you drink 3.' },
+  '4':  { name: 'Floor 🖐️',     desc: 'Last person to touch the floor (or table) drinks 3.' },
+  '5':  { name: 'Guys 🧔',       desc: 'All guys (or whoever chooses) drink 2.' },
+  '6':  { name: 'Chicks 💁',     desc: 'All women (or whoever chooses) drink 2.' },
+  '7':  { name: 'Heaven ✋',      desc: 'Last person to raise their hand drinks 3.' },
+  '8':  { name: 'Mate 🤝',        desc: 'Pick a drinking buddy. From now on, whenever you drink they drink — and vice versa.' },
+  '9':  { name: 'Bust a Rhyme 🎤', desc: 'Say a word. Go around — each person says a word that rhymes. First to fail or repeat drinks 3.' },
+  '10': { name: 'Categories 📋',  desc: 'Name a category (e.g. "types of beer"). Go around — first to repeat or blank drinks 3.' },
+  'J':  { name: 'Never Have I Ever 🤚', desc: "Everyone holds up 3 fingers. Go around saying something you've never done. If you have done it, put a finger down. First to lose all 3 fingers drinks." },
+  'Q':  { name: 'Question Master ❓', desc: 'You are the Question Master until the next Queen is drawn. Anyone who answers a question you ask must drink 2.' },
+  'K':  { name: 'Make a Rule 👑', desc: 'Make a house rule that everyone must follow for the rest of the game.' },
+};
+
+// ── House-rule suggestions (shown when a King is drawn) ──
+const RULE_SUGGESTIONS = [
+  'No pointing',
+  'No first names',
+  "No saying the word 'drink'",
+  'No swearing',
+  'Drink with your left hand only',
+  'T-Rex arms while drinking (elbows at your sides)',
+  'Little green man — flick him off your cup before every sip',
+  'No phones on the table',
+  'Nicknames only — everyone gets one now',
+  'No touching your face',
+  "Can't say 'yes' or 'no'",
+  'Everyone must toast before drinking',
+  'Speak in an accent when talking to the Question Master',
+  'Compliment someone before you drink',
+  'No crossing your legs',
+  'Announce every sip before you take it',
+];
+
+function renderRuleSuggestions() {
+  const available = RULE_SUGGESTIONS.filter(s => !houseRules.includes(s));
+  const picks = shuffle(available).slice(0, 6);
+  document.getElementById('rule-suggestions').innerHTML = picks.map(s =>
+    `<button class="rule-sug-chip" onclick="useSuggestion(this)">${s}</button>`
+  ).join('');
+}
+
+function useSuggestion(btn) {
+  const input = document.getElementById('rule-input');
+  input.value = btn.textContent;
+  input.focus();
+}
+
+// ── 4th King rule mode ──
+let kingRuleMode = localStorage.getItem('kings-kingrule') || 'beer';
+
+function kingRuleText() {
+  return kingRuleMode === 'cup' ? 'drink the entire center cup' : 'chug a full new beer';
+}
+
+function setKingRule(mode) {
+  kingRuleMode = mode;
+  try { localStorage.setItem('kings-kingrule', mode); } catch (e) {}
+  document.getElementById('kr-beer').classList.toggle('active', mode === 'beer');
+  document.getElementById('kr-cup').classList.toggle('active', mode === 'cup');
+  document.getElementById('king-rule-note').innerHTML =
+    `The player who draws the <strong>4th King</strong> must ${kingRuleText()}.`;
+  buildRulesGrid();
+}
+
+// ── State ──
+let cardPositions = []; // [{card, drawn}] × 52
+let players       = [];
+let currentPlayer = 0;
+let kingsDrawn    = 0;
+let houseRules    = [];
+let pendingKing   = false;
+let gameActive    = false;
+let lastDrawnIdx  = -1;
+let cardFlipped   = false; // true after a flip, until Pass is clicked
+let questionMaster = null; // current Question Master (Q rule)
+let mates          = [];   // [[nameA, nameB], …] drinking-buddy pairs (8 rule)
+
+// Circle dimensions (computed per viewport at startGame)
+let CIRCLE_SIZE   = 500;
+let CIRCLE_RADIUS = 195;
+let CARD_W        = 50;
+let CARD_H        = 70;
+
+// ── Build rules reference ──
+function buildRulesGrid() {
+  document.getElementById('rules-grid').innerHTML = Object.entries(KINGS_RULES).map(([v, r]) => {
+    const desc = v === 'K' ? `${r.desc} The player who draws the 4th King must ${kingRuleText()}.` : r.desc;
+    return `<div class="kings-rule-item">
+       <span class="kings-rule-value">${v}</span>
+       <span class="kings-rule-text"><span class="kings-rule-name">${r.name}</span>${desc}</span>
+     </div>`;
+  }).join('');
+}
+
+// ── Draw history ──
+let drawLog = [];
+
+function addDrawLog(type, msg) {
+  drawLog.unshift({ type, msg });
+  if (drawLog.length > 60) drawLog.pop();
+  renderDrawLog();
+}
+
+function renderDrawLog() {
+  const el = document.getElementById('draw-log');
+  el.innerHTML = drawLog.length
+    ? drawLog.map(e => `<div class="dl-entry ${e.type}">${e.msg}</div>`).join('')
+    : '<div class="text-muted text-sm">No cards drawn yet…</div>';
+}
+
+// ── Start game ──
+function startGame() {
+  const names = readPlayerNames();
+  players = names.map(name => ({ name }));
+  if (players.length < 2) { alert('Need at least 2 players.'); return; }
+  saveRoster(names);
+
+  // Responsive circle sizing
+  const avail = Math.min(window.innerWidth - 48, 520);
+  if (avail >= 480) {
+    CIRCLE_SIZE = 500; CIRCLE_RADIUS = 195; CARD_W = 50; CARD_H = 70;
+  } else if (avail >= 360) {
+    CIRCLE_SIZE = 380; CIRCLE_RADIUS = 148; CARD_W = 40; CARD_H = 56;
+  } else {
+    CIRCLE_SIZE = 310; CIRCLE_RADIUS = 120; CARD_W = 32; CARD_H = 45;
+  }
+
+  const ct = document.getElementById('circle-table');
+  ct.style.width  = CIRCLE_SIZE + 'px';
+  ct.style.height = CIRCLE_SIZE + 'px';
+
+  cardPositions = shuffle(createDeck()).map(card => ({ card, drawn: false }));
+  currentPlayer = 0; kingsDrawn = 0; houseRules = [];
+  pendingKing = false; gameActive = true; lastDrawnIdx = -1; cardFlipped = false;
+  questionMaster = null; mates = [];
+  drawLog = [];
+  renderDrawLog();
+  dismissKingOverlay();
+
+  for (let i = 0; i < 4; i++) {
+    const s = document.getElementById(`ks-${i}`);
+    s.classList.remove('filled', 'fourth');
+    s.textContent = '♛';
+  }
+
+  document.getElementById('setup-panel').classList.add('hidden');
+  document.getElementById('game-area').classList.remove('hidden');
+  document.getElementById('rule-display').classList.add('hidden');
+  document.getElementById('rule-maker').classList.add('hidden');
+  document.getElementById('mate-picker').classList.add('hidden');
+  document.getElementById('rules-banner').classList.add('hidden');
+  document.getElementById('roles-banner').classList.add('hidden');
+  document.getElementById('next-turn-btn').classList.add('hidden');
+
+  updateTurnDisplay();
+  renderCircle();
+  updateCardsRemaining();
+}
+
+// ── Render the circle of cards ──
+function renderCircle() {
+  const table = document.getElementById('circle-table');
+  const halfW = CARD_W / 2;
+  const halfH = CARD_H / 2;
+
+  // Font scaling for small cards
+  const cvSize  = CARD_W < 38 ? '0.52rem' : CARD_W < 46 ? '0.65rem' : '0.78rem';
+  const csSize  = CARD_W < 38 ? '0.42rem' : CARD_W < 46 ? '0.52rem' : '0.62rem';
+  const midSize = CARD_W < 38 ? '0.72rem' : CARD_W < 46 ? '0.92rem' : '1.15rem';
+  const pad     = CARD_W < 38 ? '2px 3px' : '3px 4px';
+
+  // Cup HTML
+  let html = `<div class="solo-cup">
+    <div class="cup-rim"></div>
+    <div class="cup-body"></div>
+    <div class="cup-base"></div>
+  </div>`;
+
+  // Card slots
+  cardPositions.forEach((pos, i) => {
+    const angle     = (i / 52) * 360;
+    const isUndrawn = !pos.drawn;
+    const isJust    = i === lastDrawnIdx;
+    const clickable = isUndrawn && gameActive && !cardFlipped;
+
+    let cls = 'cc-slot';
+    if (!isUndrawn)   cls += ' drawn';
+    else if (clickable) cls += ' undrawn';
+    else              cls += ' inactive';
+    if (isJust) cls += ' just-drawn';
+
+    const cardCls = pos.drawn ? (isJust ? 'flipped-reveal' : '') : '';
+    const inner   = pos.drawn ? cardHTML(pos.card, cardCls) : cardHTML(null, cardCls);
+
+    html += `<div class="${cls}"
+      style="width:${CARD_W}px; height:${CARD_H}px; margin-left:${-halfW}px; margin-top:${-halfH}px; transform:rotate(${angle}deg) translateY(-${CIRCLE_RADIUS}px);"
+      ${clickable ? `onclick="flipCard(${i})"` : ''}>
+      ${inner}
+    </div>`;
+  });
+
+  table.innerHTML = html;
+
+  // Resize each card to fit the slot
+  table.querySelectorAll('.cc-slot .card').forEach(el => {
+    el.style.width   = CARD_W  + 'px';
+    el.style.height  = CARD_H  + 'px';
+    el.style.padding = pad;
+  });
+  table.querySelectorAll('.cc-slot .cv').forEach(el      => el.style.fontSize = cvSize);
+  table.querySelectorAll('.cc-slot .cs').forEach(el      => el.style.fontSize = csSize);
+  table.querySelectorAll('.cc-slot .card-mid').forEach(el => el.style.fontSize = midSize);
+}
+
+// ── Flip a card ──
+function flipCard(i) {
+  if (!gameActive || cardFlipped || cardPositions[i].drawn) return;
+  cardFlipped = true;
+
+  cardPositions[i].drawn = true;
+  lastDrawnIdx = i;
+  renderCircle();
+  updateCardsRemaining();
+
+  const { card } = cardPositions[i];
+  const rule = KINGS_RULES[card.value];
+  const pName = players[currentPlayer].name;
+
+  // Show result
+  document.getElementById('rule-display').classList.remove('hidden');
+  document.getElementById('rule-drawn').textContent = `${pName} drew the ${card.value}${card.suit}`;
+  document.getElementById('rule-name').textContent  = rule.name;
+  document.getElementById('rule-desc').textContent  = rule.desc;
+
+  addDrawLog(card.value === 'K' ? 'king' : '', `${pName} drew the ${card.value}${card.suit} — ${rule.name}`);
+
+  if (card.value === 'K') {
+    kingsDrawn++;
+    updateKingsDisplay();
+
+    if (kingsDrawn === 4) {
+      document.getElementById('rule-name').textContent = '🚨 4th King! 🚨';
+      document.getElementById('rule-desc').textContent = `${pName} drew the 4th King! Game over!`;
+      document.getElementById('turn-sub').textContent  = '🍺 Game over!';
+      gameActive = false;
+      addDrawLog('king', `🚨 ${pName} drew the 4th King — must ${kingRuleText()}!`);
+      showKingOverlay(pName);
+      return;
+    }
+
+    // Prompt for house rule
+    pendingKing = true;
+    renderCircle(); // disables card clicks
+    const rm = document.getElementById('rule-maker');
+    rm.classList.remove('hidden');
+    document.getElementById('rule-maker-title').textContent = `${pName}: Make a House Rule (King #${kingsDrawn})`;
+    document.getElementById('rule-input').value = '';
+    renderRuleSuggestions();
+    setTimeout(() => document.getElementById('rule-input').focus(), 80);
+    return;
+  }
+
+  if (card.value === 'Q') {
+    questionMaster = pName;
+    updateRoles();
+    addDrawLog('role', `❓ ${pName} is the new Question Master`);
+  }
+  if (card.value === '8') {
+    showMatePicker();
+  }
+
+  showPassButton();
+}
+
+// ── 4th King overlay ──
+function showKingOverlay(pName) {
+  document.getElementById('ko-desc').textContent =
+    `${pName} drew the 4th King and must ${kingRuleText()}!`;
+  const confetti = document.getElementById('king-confetti');
+  const emojis = ['👑', '🍺', '🎉', '✨', '🃏'];
+  confetti.innerHTML = Array.from({ length: 26 }, () => {
+    const e = emojis[Math.floor(Math.random() * emojis.length)];
+    const left = Math.random() * 100;
+    const delay = Math.random() * 1.2;
+    const dur = 1.8 + Math.random() * 1.6;
+    return `<span style="left:${left}%; animation-duration:${dur}s; animation-delay:${delay}s;">${e}</span>`;
+  }).join('');
+  document.getElementById('king-overlay').classList.remove('hidden');
+}
+
+function dismissKingOverlay() {
+  document.getElementById('king-overlay').classList.add('hidden');
+  document.getElementById('king-confetti').innerHTML = '';
+}
+
+// ── Mate picker (8 rule) ──
+function showMatePicker() {
+  const picker = document.getElementById('mate-picker');
+  picker.classList.remove('hidden');
+  document.getElementById('mate-picker-title').textContent =
+    `${players[currentPlayer].name}: Pick Your Mate 🤝`;
+  document.getElementById('mate-buttons').innerHTML = players
+    .map((p, i) => i === currentPlayer ? '' :
+      `<button class="btn btn-surface btn-sm" onclick="pickMate(${i})">${p.name}</button>`)
+    .join('');
+}
+
+function pickMate(i) {
+  mates.push([players[currentPlayer].name, players[i].name]);
+  document.getElementById('mate-picker').classList.add('hidden');
+  updateRoles();
+  addDrawLog('role', `🤝 ${players[currentPlayer].name} and ${players[i].name} are now mates`);
+}
+
+// Merge mate pairs into chains: A↔B + B↔C → A↔B↔C (all drink together)
+function mateChains() {
+  const chains = [];
+  mates.forEach(([a, b]) => {
+    const ca = chains.find(c => c.includes(a));
+    const cb = chains.find(c => c.includes(b));
+    if (ca && cb && ca !== cb) {
+      ca.push(...cb);
+      chains.splice(chains.indexOf(cb), 1);
+    } else if (ca) {
+      if (!ca.includes(b)) ca.push(b);
+    } else if (cb) {
+      if (!cb.includes(a)) cb.push(a);
+    } else {
+      chains.push([a, b]);
+    }
+  });
+  return chains;
+}
+
+function updateRoles() {
+  const banner = document.getElementById('roles-banner');
+  const lines = [];
+  if (questionMaster) lines.push(`<div class="rule-row">❓ Question Master: <strong>${questionMaster}</strong></div>`);
+  mateChains().forEach(chain => {
+    const label = chain.map(n => `<strong>${n}</strong>`).join(' ↔ ');
+    const suffix = chain.length > 2 ? ' — chain! One drinks, all drink' : '';
+    lines.push(`<div class="rule-row">🤝 Mates: ${label}${suffix}</div>`);
+  });
+  if (lines.length) {
+    banner.classList.remove('hidden');
+    banner.innerHTML = lines.join('');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+// ── Add house rule (after King) ──
+function addRule() {
+  const val = document.getElementById('rule-input').value.trim();
+  if (!val) return;
+  houseRules.push(val);
+  document.getElementById('rule-maker').classList.add('hidden');
+  pendingKing = false;
+  updateBanners();
+  renderCircle();
+  addDrawLog('king', `👑 New house rule: ${val}`);
+  showPassButton();
+}
+
+function showPassButton() {
+  const nextName = players[(currentPlayer + 1) % players.length].name;
+  const btn = document.getElementById('next-turn-btn');
+  btn.textContent = `Pass to ${nextName} →`;
+  btn.classList.remove('hidden');
+}
+
+// ── Advance to next player ──
+function advanceTurn() {
+  currentPlayer = (currentPlayer + 1) % players.length;
+  lastDrawnIdx  = -1;
+  cardFlipped   = false;
+  document.getElementById('rule-display').classList.add('hidden');
+  document.getElementById('mate-picker').classList.add('hidden');
+  document.getElementById('next-turn-btn').classList.add('hidden');
+  updateTurnDisplay();
+  renderCircle();
+
+  // All cards drawn?
+  if (cardPositions.every(p => p.drawn)) {
+    document.getElementById('rule-display').classList.remove('hidden');
+    document.getElementById('rule-drawn').textContent = '';
+    document.getElementById('rule-name').textContent  = '🎉 All 52 cards drawn!';
+    document.getElementById('rule-desc').textContent  = 'Every card has been flipped. The game is over — hope it was a good time!';
+    gameActive = false;
+  }
+}
+
+// ── Helpers ──
+function updateTurnDisplay() {
+  document.getElementById('turn-name').textContent = `${players[currentPlayer].name}'s turn`;
+  document.getElementById('turn-sub').textContent  = 'Click any face-down card to flip it.';
+}
+
+function updateKingsDisplay() {
+  for (let i = 0; i < kingsDrawn; i++) {
+    const slot = document.getElementById(`ks-${i}`);
+    slot.classList.add('filled');
+    slot.textContent = '♔';
+    if (kingsDrawn === 4) slot.classList.add('fourth');
+  }
+}
+
+function updateCardsRemaining() {
+  const r = cardPositions.filter(p => !p.drawn).length;
+  document.getElementById('cards-remaining').textContent =
+    `${r} card${r !== 1 ? 's' : ''} remaining`;
+}
+
+function updateBanners() {
+  const rb = document.getElementById('rules-banner');
+  if (houseRules.length > 0) {
+    rb.classList.remove('hidden');
+    document.getElementById('rules-list').innerHTML =
+      houseRules.map((r, i) => `<div class="rule-row">${i + 1}. ${r}</div>`).join('');
+  } else {
+    rb.classList.add('hidden');
+  }
+}
+
+function resetGame() {
+  gameActive = false;
+  document.getElementById('game-area').classList.add('hidden');
+  document.getElementById('setup-panel').classList.remove('hidden');
+}
+
+setKingRule(kingRuleMode); // also builds the rules grid
+restoreRoster();
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f0b429">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Card Games">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>Ride the Bus</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .phase-steps {
+      display: flex;
+      gap: 0;
+      margin-bottom: 28px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .phase-step {
+      flex: 1;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--muted);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      transition: background 0.2s, color 0.2s;
+    }
+    .phase-step:last-child { border-right: none; }
+    .phase-step.active { background: var(--surface2); color: var(--gold); }
+    .phase-step.done { color: var(--green); }
+
+    /* Phase 1 */
+    .deal-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 650px) { .deal-layout { grid-template-columns: 1fr; } }
+
+    .question-box {
+      background: var(--surface2);
+      border: 2px solid var(--gold);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .question-text {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+    .answer-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .player-hand-mini {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .players-progress {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .progress-name {
+      min-width: 90px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .progress-cards {
+      display: flex;
+      gap: 4px;
+    }
+
+    /* Phase 2 */
+    .pyramid-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: 20px;
+    }
+    .pyr-row {
+      display: flex;
+      gap: 7px;
+      margin-bottom: 7px;
+    }
+    .pyr-cell {
+      position: relative;
+    }
+    .pyr-drinks-label {
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+    .pyr-row-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .pyr-row-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    /* Phase 3 */
+    .bus-rider-display {
+      text-align: center;
+      padding: 20px;
+    }
+    .bus-rider-name {
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .bus-cards-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 16px 0;
+    }
+    .bus-card-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .bus-q-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-align: center;
+    }
+    .bus-progress-dots {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 12px 0;
+    }
+    .bus-dot {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+    }
+    .bus-dot.correct { background: var(--green); border-color: var(--green); }
+    .bus-dot.wrong { background: var(--accent); border-color: var(--accent); }
+    .bus-dot.pending { background: transparent; border-color: var(--muted); }
+
+    /* Phase 2 — give assignment */
+    .give-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .give-row {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .give-row-label { font-size: 0.83rem; font-weight: 700; color: var(--text); }
+    .give-row-cards { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+    .give-row-btns  { display: flex; gap: 6px; flex-wrap: wrap; }
+    .give-row.assigned { opacity: 0.55; }
+    .give-row.assigned .give-row-btns { display: none; }
+    .give-row-assigned-to { font-size: 0.8rem; color: var(--green); font-weight: 700; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="topbar-brand" href="index.html">♠ Card <em>Games</em></a>
+  <a class="topbar-back" href="index.html">← Back</a>
+</nav>
+
+<div class="page wide">
+  <div class="page-title">🚌 Ride the Bus</div>
+  <div class="page-sub">Three phases: deal cards, flip the pyramid, then the loser rides the bus.</div>
+
+  <button class="rules-toggle" onclick="toggleRules(this)">
+    📖 How to Play <span class="arrow">▼</span>
+  </button>
+  <div class="rules-body" id="rules-body">
+    <h3>Phase 1 — Deal</h3>
+    <p>Go around the table. Each player answers 4 questions about the next card to be dealt to them. Right → give a drink. Wrong → take a drink:</p>
+    <ol>
+      <li><strong>Red or Black?</strong></li>
+      <li><strong>Higher or Lower</strong> than your first card?</li>
+      <li><strong>Inside or Outside</strong> the range of your first two cards?</li>
+      <li><strong>What suit?</strong> (♠ ♥ ♦ ♣)</li>
+    </ol>
+    <p>After all 4 questions, the card is revealed and they get to keep it.</p>
+
+    <h3>Phase 2 — The Pyramid</h3>
+    <p>Build a face-down pyramid: 5 cards on the bottom, then 4, 3, 2, 1. Flip cards row by row from the bottom up:</p>
+    <ul>
+      <li>Row 1 (bottom, 5 cards): <strong style="color:var(--green)">GIVE 1</strong></li>
+      <li>Row 2 (4 cards): <strong style="color:var(--accent)">TAKE 2</strong></li>
+      <li>Row 3 (3 cards): <strong style="color:var(--green)">GIVE 3</strong></li>
+      <li>Row 4 (2 cards): <strong style="color:var(--green)">GIVE 4</strong></li>
+      <li>Row 5 (top, 1 card): <strong style="color:var(--green)">GIVE 5</strong></li>
+    </ul>
+    <p><strong>GIVE rows:</strong> if a flipped card matches a rank in your hand, you give that many drinks AND pass the matching card to another player — whoever receives it takes the drinks.</p>
+    <p><strong>TAKE row:</strong> if it matches, you take the drinks yourself and keep your card.</p>
+    <p>If a flipped card matches nobody's hand, a new card is automatically drawn from the deck on top of it until someone matches.</p>
+
+    <h3>Phase 3 — Ride the Bus</h3>
+    <p>The player with the <strong>most cards in hand</strong> after Phase 2 rides the bus. Ties: most cards of same suit. Still tied: both ride.</p>
+    <p>The rider must survive one card per card in their hand. <strong>Card 1:</strong> Red or Black. <strong>Every card after:</strong> Higher or Lower than the previous card. Get one wrong → drink and restart from card 1. Must get <em>all correct in a row</em> to get off the bus.</p>
+  </div>
+
+  <!-- Setup -->
+  <div id="setup-panel" class="panel">
+    <div class="panel-title">Players</div>
+    <div class="setup-form">
+      <div class="player-list" id="player-list">
+        <div class="player-row"><input class="form-input" placeholder="Player 1" value="Player 1"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 2" value="Player 2"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 3" value="Player 3"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 4" value="Player 4"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+      </div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost btn-sm" onclick="addPlayerRow()">+ Add Player</button>
+        <button class="btn btn-gold btn-lg" onclick="startGame()">Start Game →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game area -->
+  <div id="game-area" class="hidden">
+    <div class="phase-steps" id="phase-steps">
+      <div class="phase-step active" id="ps-1">① Deal</div>
+      <div class="phase-step" id="ps-2">② Pyramid</div>
+      <div class="phase-step" id="ps-3">③ Ride the Bus</div>
+    </div>
+
+    <!-- PHASE 1 -->
+    <div id="phase1">
+      <div class="deal-layout">
+        <div>
+          <div class="panel mb-16">
+            <div class="panel-title" id="p1-player-label">Player's Turn</div>
+            <div class="question-box" id="question-box">
+              <div class="question-text" id="q-text">Get ready…</div>
+              <div class="answer-buttons" id="q-buttons"></div>
+            </div>
+            <div class="notif mt-16 hidden" id="p1-result">
+              <div class="notif-title" id="p1-result-title"></div>
+              <div id="p1-result-desc"></div>
+            </div>
+            <div class="mt-16 hidden" id="p1-next-area">
+              <button class="btn btn-gold w-full" id="p1-next-btn" onclick="nextDealStep()">Next →</button>
+            </div>
+          </div>
+          <div class="card-table" style="min-height:120px;" id="p1-card-area">
+            <div style="color:var(--muted); font-size:0.9rem;">Card will appear here</div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="panel-title">Players & Cards</div>
+            <div class="players-progress" id="players-progress"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 2 -->
+    <div id="phase2" class="hidden">
+      <div class="deal-layout">
+        <div>
+          <div class="card-table" style="min-height:240px; flex-direction:column;">
+            <div class="pyramid-wrap" id="pyramid-wrap"></div>
+          </div>
+          <div class="notif mt-16 hidden" id="p2-result">
+            <div class="notif-title" id="p2-result-title"></div>
+            <div id="p2-result-desc"></div>
+          </div>
+          <div class="mt-16">
+            <button class="btn btn-gold btn-lg w-full" id="p2-flip-btn" onclick="flipPyramidCard()">Flip Next Card</button>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="panel-title">Player Hands</div>
+            <div class="players-progress" id="p2-players"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 3 -->
+    <div id="phase3" class="hidden">
+      <div class="bus-rider-display">
+        <div style="color:var(--muted); font-size:0.9rem; margin-bottom:4px;">Riding the Bus:</div>
+        <div class="bus-rider-name" id="bus-rider-name"></div>
+        <div class="bus-cards-row" id="bus-cards-display"></div>
+        <div class="bus-progress-dots" id="bus-dots"></div>
+      </div>
+
+      <div class="panel" style="max-width:500px; margin:0 auto;">
+        <div class="panel-title" id="bus-q-label">Question 1 of 4</div>
+        <div class="question-box" id="bus-question-box">
+          <div class="question-text" id="bus-q-text"></div>
+          <div class="answer-buttons" id="bus-q-buttons"></div>
+        </div>
+        <div class="notif mt-16 hidden" id="bus-result">
+          <div class="notif-title" id="bus-result-title"></div>
+          <div id="bus-result-desc"></div>
+        </div>
+        <div class="mt-16 hidden" id="bus-next-area">
+          <button class="btn btn-gold w-full" onclick="nextBusStep()">Next →</button>
+        </div>
+      </div>
+
+      <div class="notif success mt-16 hidden" id="bus-win">
+        <div class="notif-title">🎉 Off the Bus!</div>
+        <div id="bus-win-desc"></div>
+      </div>
+      <div class="flex gap-8 mt-16" style="justify-content:center;">
+        <button class="btn btn-ghost" onclick="resetGame()">New Game</button>
+      </div>
+    </div>
+
+  </div><!-- /game-area -->
+</div>
+
+<script src="deck.js"></script>
+<script>
+// ─── State ───
+let deck = [];
+let players = []; // {name, hand:[cards], drinks:0}
+let phase = 1;
+
+// Phase 1
+let p1PlayerIdx = 0;
+let p1QuestionIdx = 0; // 0-3
+let p1PendingCard = null;
+let p1AwaitingReveal = false;
+
+// Phase 2
+let pyramid = []; // pyramid[row] = [{card, flipped}], row 0 = bottom (5 cards)
+let pyrRow = 0;
+let pyrCol = 0;
+const PYR_ROWS = [5,4,3,2,1];
+
+// Phase 3
+let busRiders = [];
+let busRiderIdx = 0;
+let busCards = []; // cards dealt during bus ride
+let busStep = 0; // 0-3
+let busTotal = 0; // total drink count this ride
+
+// ─── Setup ───
+// 4 cards per player + 15 pyramid cards must fit in one 52-card deck → max 9 players
+window.MAX_PLAYERS = 9;
+
+function startGame() {
+  const names = readPlayerNames();
+  players = names.map(name => ({ name, hand: [], drinks: 0 }));
+  if (players.length < 2) { alert('Need at least 2 players.'); return; }
+  if (players.length > 9) { alert('Maximum 9 players — the deck only has 52 cards.'); return; }
+  saveRoster(names);
+
+  deck = shuffle(createDeck());
+  phase = 1;
+  p1PlayerIdx = 0;
+  p1QuestionIdx = 0;
+  p1PendingCard = null;
+  p1AwaitingReveal = false;
+
+  document.getElementById('setup-panel').classList.add('hidden');
+  document.getElementById('game-area').classList.remove('hidden');
+  beginPhase1();
+}
+
+// ─── Phase 1 ───
+function beginPhase1() {
+  setPhaseStep(1);
+  document.getElementById('phase1').classList.remove('hidden');
+  document.getElementById('phase2').classList.add('hidden');
+  document.getElementById('phase3').classList.add('hidden');
+  renderProgress();
+  askQuestion();
+}
+
+const QUESTION_NAMES = ['Red or Black', 'Higher or Lower', 'Inside or Outside', 'What Suit'];
+
+// Ace is always high
+function r(card) { return card.value === 'A' ? 14 : card.rank; }
+
+function getQuestion(qi, p) {
+  if (qi === 0) {
+    return { text: 'Red or Black?', buttons: ['Red ♥♦', 'Black ♠♣'] };
+  } else if (qi === 1) {
+    const first = p.hand[0];
+    return {
+      text: `Higher or Lower than your ${first.value}${first.suit}?`,
+      buttons: ['Higher ↑', 'Lower ↓', 'Same =']
+    };
+  } else if (qi === 2) {
+    const c1 = p.hand[0], c2 = p.hand[1];
+    const lo = Math.min(r(c1), r(c2)), hi = Math.max(r(c1), r(c2));
+    const rangeStr = lo === hi
+      ? `same rank as your ${c1.value}`
+      : `between your ${rankLabel(lo)} and ${rankLabel(hi)}`;
+    const buttons = lo === hi
+      ? ['Outside', 'Same =']
+      : ['Inside', 'Outside', 'Same ='];
+    return { text: `Inside or Outside? (${rangeStr})`, buttons };
+  } else {
+    return { text: 'What suit is it?', buttons: ['♠ Spades', '♥ Hearts', '♦ Diamonds', '♣ Clubs'] };
+  }
+}
+
+function askQuestion() {
+  const p = players[p1PlayerIdx];
+  document.getElementById('p1-player-label').textContent =
+    `Round ${p1QuestionIdx + 1} of 4 — ${QUESTION_NAMES[p1QuestionIdx]}`;
+  document.getElementById('p1-result').classList.add('hidden');
+  document.getElementById('p1-next-area').classList.add('hidden');
+  document.getElementById('p1-card-area').innerHTML = `<div style="color:var(--muted); font-size:0.9rem;">Card will appear after you answer</div>`;
+
+  const q = getQuestion(p1QuestionIdx, p);
+  document.getElementById('q-text').innerHTML = `<span style="color:var(--muted);font-size:0.95rem;font-weight:600;">${p.name}</span><br>${q.text}`;
+  document.getElementById('q-buttons').innerHTML = q.buttons.map(b =>
+    `<button class="btn btn-surface" onclick="answerQuestion('${b}')">${b}</button>`
+  ).join('');
+}
+
+function answerQuestion(answer) {
+  // Disable buttons
+  document.querySelectorAll('#q-buttons button').forEach(b => b.disabled = true);
+
+  const p = players[p1PlayerIdx];
+  const card = deck.pop();
+  p1PendingCard = card;
+
+  document.getElementById('p1-card-area').innerHTML = cardHTML(card, 'lg flipped-reveal');
+
+  let correct = false;
+  let explanation = '';
+
+  if (p1QuestionIdx === 0) {
+    // Red or Black
+    const guess = answer.startsWith('Red') ? 'red' : 'black';
+    correct = card.color === guess;
+    explanation = `Card was ${card.color}.`;
+  } else if (p1QuestionIdx === 1) {
+    // Higher or Lower than first card
+    const first = p.hand[0];
+    if (answer.startsWith('Higher')) {
+      correct = r(card) > r(first);
+    } else if (answer.startsWith('Lower')) {
+      correct = r(card) < r(first);
+    } else {
+      correct = r(card) === r(first);
+    }
+    explanation = `Your first card was ${first.value}. New card is ${card.value}.`;
+  } else if (p1QuestionIdx === 2) {
+    // Inside or Outside
+    const r1 = r(p.hand[0]), r2 = r(p.hand[1]);
+    const lo = Math.min(r1, r2), hi = Math.max(r1, r2);
+    if (answer === 'Same =') {
+      correct = r(card) === lo || r(card) === hi;
+    } else if (answer === 'Inside') {
+      correct = r(card) > lo && r(card) < hi;
+    } else {
+      correct = r(card) < lo || r(card) > hi;
+    }
+    explanation = `Your cards: ${p.hand[0].value}, ${p.hand[1].value}. New card: ${card.value}.`;
+  } else {
+    // Suit
+    const suitMap = { '♠ Spades': '♠', '♥ Hearts': '♥', '♦ Diamonds': '♦', '♣ Clubs': '♣' };
+    correct = card.suit === suitMap[answer];
+    explanation = `Card was ${card.suit}.`;
+  }
+
+  const result = document.getElementById('p1-result');
+  result.className = `notif ${correct ? 'success' : 'danger'} mt-16`;
+  result.classList.remove('hidden');
+  document.getElementById('p1-result-title').textContent = correct ? '✅ Correct — give a drink!' : '❌ Wrong — drink 1!';
+  document.getElementById('p1-result-desc').textContent = explanation;
+
+  if (!correct) p.drinks++;
+
+  p.hand.push(card);
+  renderProgress();
+
+  document.getElementById('p1-next-area').classList.remove('hidden');
+  const nextBtn = document.getElementById('p1-next-btn');
+
+  const isLastPlayer = p1PlayerIdx >= players.length - 1;
+  const isLastRound  = p1QuestionIdx >= 3;
+
+  if (!isLastPlayer) {
+    nextBtn.textContent = `Next: ${players[p1PlayerIdx + 1].name} →`;
+  } else if (!isLastRound) {
+    nextBtn.textContent = `Round ${p1QuestionIdx + 2}: ${QUESTION_NAMES[p1QuestionIdx + 1]} →`;
+  } else {
+    nextBtn.textContent = `Start the Pyramid →`;
+  }
+}
+
+function nextDealStep() {
+  p1PlayerIdx++;
+  if (p1PlayerIdx >= players.length) {
+    p1PlayerIdx = 0;
+    p1QuestionIdx++;
+    if (p1QuestionIdx > 3) {
+      beginPhase2();
+      return;
+    }
+  }
+  askQuestion();
+}
+
+function renderProgress() {
+  const container = document.getElementById('players-progress');
+  container.innerHTML = players.map(p => `
+    <div class="progress-row">
+      <div class="progress-name">${p.name}${p.drinks > 0 ? ` <span class="drink-badge">${p.drinks}🍺</span>` : ''}</div>
+      <div class="progress-cards">${p.hand.map(c => cardHTML(c, 'sm')).join('')}</div>
+    </div>`).join('');
+}
+
+// ─── Phase 2 ───
+// Each cell: { card (original pyramid card), flipped, stack: [] (deck cards drawn on top) }
+// topCard(cell): the current visible card — last stack card, or the original pyramid card
+
+function topCard(cell) {
+  return cell.stack.length ? cell.stack[cell.stack.length - 1] : cell.card;
+}
+
+let pyrAdvancing = false; // true when waiting for button click to move to next cell
+let pyrGives = [];        // [{giverIdx, cards:[], drinkVal, receiverIdx:null}]
+let pyrMatchValue = null; // rank of the current flipped card — matching hand cards glow
+
+function beginPhase2() {
+  setPhaseStep(2);
+  document.getElementById('phase1').classList.add('hidden');
+  document.getElementById('phase2').classList.remove('hidden');
+
+  // Build pyramid: row 0 = bottom = 5 cards
+  pyramid = PYR_ROWS.map(size => Array.from({length: size}, () => ({ card: deck.pop(), flipped: false, stack: [] })));
+  pyrRow = 0; pyrCol = 0; pyrAdvancing = false; pyrMatchValue = null;
+
+  renderPyramid();
+  renderP2Players();
+  document.getElementById('p2-result').classList.add('hidden');
+}
+
+function renderPyramid() {
+  const wrap = document.getElementById('pyramid-wrap');
+  const rows = [...pyramid].reverse(); // show top of pyramid at top visually
+  wrap.innerHTML = rows.map((row, vi) => {
+    const ri = pyramid.length - 1 - vi;
+    const drinks = ri + 1;
+    return `
+      <div class="pyr-row-wrap">
+        <div class="pyr-row-label" style="${PYR_ROWS[ri] === 4 ? 'color:var(--accent)' : ''}">${PYR_ROWS[ri] === 4 ? `⬇ ${drinks} drinks — TAKE` : `${drinks} drink${drinks > 1 ? 's' : ''} — GIVE`}</div>
+        <div class="pyr-row">
+          ${row.map(cell => {
+            if (!cell.flipped) return `<div class="pyr-cell">${cardHTML(null, 'sm')}</div>`;
+            const tc = topCard(cell);
+            const badge = cell.stack.length ? `<div style="position:absolute;top:-6px;right:-4px;background:var(--accent);color:#fff;font-size:0.55rem;font-weight:800;border-radius:8px;padding:1px 4px;">+${cell.stack.length}</div>` : '';
+            return `<div class="pyr-cell" style="position:relative;">${cardHTML(tc, 'sm just-flipped')}${badge}</div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function flipPyramidCard() {
+  // If a match was just found, advance to next cell first
+  if (pyrAdvancing) {
+    pyrAdvancing = false;
+    pyrMatchValue = null;
+    pyrCol++;
+    if (pyrCol >= pyramid[pyrRow].length) { pyrCol = 0; pyrRow++; }
+    if (pyrRow >= pyramid.length) { beginPhase3(); return; }
+  }
+
+  const cell = pyramid[pyrRow][pyrCol];
+  const drinkVal = pyrRow + 1;
+
+  // Draw the card to check: original pyramid card on first flip, deck card on top thereafter
+  let card;
+  if (!cell.flipped) {
+    cell.flipped = true;
+    card = cell.card;
+  } else {
+    if (!deck.length) deck = shuffle(createDeck());
+    card = deck.pop();
+    cell.stack.push(card);
+  }
+
+  const matches = players.filter(p => p.hand.some(c => c.value === card.value));
+  pyrMatchValue = matches.length ? card.value : null;
+
+  renderPyramid();
+  renderP2Players();
+
+  if (matches.length === 0) {
+    // No match — auto-draw another card on top after a short pause
+    document.getElementById('p2-result').classList.remove('hidden');
+    document.getElementById('p2-result').className = 'notif mt-16';
+    document.getElementById('p2-result-title').textContent = `${card.value}${card.suit} — No match, drawing another…`;
+    document.getElementById('p2-result-desc').textContent = '';
+    document.getElementById('p2-flip-btn').disabled = true;
+    setTimeout(() => {
+      document.getElementById('p2-flip-btn').disabled = false;
+      flipPyramidCard();
+    }, 700);
+  } else {
+    pyrAdvancing = true;
+    const isTake = PYR_ROWS[pyrRow] === 4; // the 4-card row is TAKE, all others are GIVE
+
+    if (isTake) {
+      // TAKE row — matching players drink, no card passing
+      const result = document.getElementById('p2-result');
+      result.classList.remove('hidden');
+      result.className = 'notif danger mt-16';
+      document.getElementById('p2-result-title').textContent = `${card.value}${card.suit} — TAKE ${drinkVal} drinks!`;
+      document.getElementById('p2-result-desc').textContent = matches.map(p => {
+        const cnt = p.hand.filter(c => c.value === card.value).length;
+        return `${p.name} drinks ${cnt * drinkVal}`;
+      }).join(' · ');
+
+      // Peek ahead to label button
+      const nextIsLast = (pyrCol + 1 >= pyramid[pyrRow].length) && (pyrRow >= pyramid.length - 1);
+      document.getElementById('p2-flip-btn').disabled = false;
+      document.getElementById('p2-flip-btn').textContent = nextIsLast ? 'Proceed to Ride the Bus →' : 'Next Card →';
+    } else {
+      // GIVE row — build give assignments, one per matching player
+      pyrGives = matches.map(p => {
+        const matchCards = p.hand.filter(c => c.value === card.value);
+        return { giverIdx: players.indexOf(p), cards: matchCards, drinkVal, receiverIdx: null };
+      });
+
+      renderGiveUI(card, drinkVal);
+      document.getElementById('p2-flip-btn').disabled = true;
+    }
+  }
+}
+
+function renderGiveUI(card, drinkVal) {
+  const result = document.getElementById('p2-result');
+  result.classList.remove('hidden');
+  result.className = 'notif success mt-16';
+
+  const allAssigned = pyrGives.every(g => g.receiverIdx !== null);
+  const nextCol = pyrCol; // already advanced
+  const isLastCell = pyrCol === 0 && pyrRow >= pyramid.length;
+
+  document.getElementById('p2-result-title').textContent =
+    `Give ${drinkVal} drink${drinkVal > 1 ? 's' : ''} per card — pass your card to someone!`;
+
+  document.getElementById('p2-result-desc').innerHTML = `
+    <div class="give-list">
+      ${pyrGives.map((g, gi) => {
+        const giver = players[g.giverIdx];
+        const cardsHTML = g.cards.map(c => cardHTML(c, 'sm')).join('');
+        if (g.receiverIdx !== null) {
+          return `<div class="give-row assigned" id="give-row-${gi}">
+            <div class="give-row-label">${giver.name}</div>
+            <div class="give-row-cards">${cardsHTML}</div>
+            <div class="give-row-assigned-to">✓ Given to ${players[g.receiverIdx].name} (drinks ${g.cards.length * drinkVal})</div>
+          </div>`;
+        }
+        const btns = players.map((p, pi) => pi === g.giverIdx ? '' :
+          `<button class="btn btn-surface btn-sm" onclick="assignGive(${gi}, ${pi})">${p.name}</button>`
+        ).join('');
+        return `<div class="give-row" id="give-row-${gi}">
+          <div class="give-row-label">${giver.name} — pick who receives (drinks ${g.cards.length * drinkVal}):</div>
+          <div class="give-row-cards">${cardsHTML}</div>
+          <div class="give-row-btns">${btns}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  if (allAssigned) {
+    document.getElementById('p2-flip-btn').disabled = false;
+    document.getElementById('p2-flip-btn').textContent = isLastCell ? 'Proceed to Ride the Bus →' : 'Next Card →';
+  }
+}
+
+function assignGive(giveIdx, receiverIdx) {
+  const g = pyrGives[giveIdx];
+  if (g.receiverIdx !== null) return; // already assigned
+
+  // Move matching cards from giver → receiver
+  const giver    = players[g.giverIdx];
+  const receiver = players[receiverIdx];
+  g.cards.forEach(card => {
+    const idx = giver.hand.findIndex(c => c.id === card.id);
+    if (idx !== -1) giver.hand.splice(idx, 1);
+    receiver.hand.push(card);
+  });
+  g.receiverIdx = receiverIdx;
+
+  // Re-render give UI (pass null for card since we're just refreshing)
+  renderGiveUI(null, g.drinkVal);
+  renderP2Players();
+}
+
+function renderP2Players() {
+  const container = document.getElementById('p2-players');
+  container.innerHTML = players.map(p => `
+    <div class="progress-row">
+      <div class="progress-name">${p.name}</div>
+      <div class="progress-cards">${p.hand.map(c =>
+        cardHTML(c, 'sm' + (pyrMatchValue && c.value === pyrMatchValue ? ' highlight' : ''))
+      ).join('')}</div>
+    </div>`).join('');
+}
+
+// ─── Phase 3 ───
+let busLength = 4; // set to rider's hand size at start of phase 3
+
+function beginPhase3() {
+  setPhaseStep(3);
+  document.getElementById('phase2').classList.add('hidden');
+  document.getElementById('phase3').classList.remove('hidden');
+
+  // Find who rides: most cards, tiebreak by most of a single suit
+  const maxCards = Math.max(...players.map(p => p.hand.length));
+  const candidates = players.filter(p => p.hand.length === maxCards);
+  if (candidates.length === 1) {
+    busRiders = [candidates[0]];
+  } else {
+    const maxSuitCount = (p) => Math.max(...SUITS.map(s => p.hand.filter(c => c.suit === s).length));
+    const maxSuit = Math.max(...candidates.map(maxSuitCount));
+    busRiders = candidates.filter(p => maxSuitCount(p) === maxSuit);
+  }
+
+  busRiderIdx = 0;
+  startBusRide();
+}
+
+function startBusRide() {
+  const rider = busRiders[busRiderIdx];
+  busLength = Math.max(rider.hand.length, 1); // number of cards they must survive
+  busCards = [];
+  busStep = 0;
+  busTotal = 0;
+
+  document.getElementById('bus-rider-name').textContent = `🚌 ${rider.name}`;
+  document.getElementById('bus-win').classList.add('hidden');
+  renderBusDots();
+  updateBusCardsDisplay();
+  askBusQuestion();
+}
+
+function askBusQuestion() {
+  document.getElementById('bus-result').classList.add('hidden');
+  document.getElementById('bus-next-area').classList.add('hidden');
+
+  let label, questionText, buttons;
+  if (busStep === 0) {
+    label = `Card 1 of ${busLength} — Red or Black?`;
+    questionText = 'Red or Black?';
+    buttons = ['Red ♥♦', 'Black ♠♣'];
+  } else {
+    const prev = busCards[busStep - 1];
+    label = `Card ${busStep + 1} of ${busLength} — Higher or Lower?`;
+    questionText = `Higher or Lower than ${prev.value}${prev.suit}?`;
+    buttons = ['Higher ↑', 'Lower ↓'];
+  }
+
+  document.getElementById('bus-q-label').textContent = label;
+  document.getElementById('bus-q-text').textContent = questionText;
+  document.getElementById('bus-q-buttons').innerHTML = buttons.map(b =>
+    `<button class="btn btn-surface" onclick="answerBus('${b}')">${b}</button>`
+  ).join('');
+
+  updateBusCardsDisplay();
+}
+
+function answerBus(answer) {
+  document.querySelectorAll('#bus-q-buttons button').forEach(b => b.disabled = true);
+
+  if (!deck.length) deck = shuffle(createDeck());
+  const card = deck.pop();
+  busCards.push(card);
+
+  let correct = false;
+  if (busStep === 0) {
+    correct = (answer.startsWith('Red') && card.color === 'red') ||
+              (answer.startsWith('Black') && card.color === 'black');
+  } else {
+    const prev = busCards[busStep - 1];
+    if (answer.startsWith('Higher')) correct = r(card) > r(prev);
+    else                              correct = r(card) < r(prev);
+  }
+
+  updateBusCardsDisplay();
+  renderBusDots();
+
+  const res = document.getElementById('bus-result');
+  res.classList.remove('hidden');
+
+  if (correct) {
+    busStep++;
+    if (busStep >= busLength) {
+      // All correct — off the bus!
+      res.className = 'notif success mt-16';
+      document.getElementById('bus-result-title').textContent = `🎉 Correct! Off the bus!`;
+      document.getElementById('bus-result-desc').textContent =
+        `Card: ${card.value}${card.suit}. ${busRiders[busRiderIdx].name} survived all ${busLength} cards after ${busTotal} restart${busTotal !== 1 ? 's' : ''}!`;
+      showBusWin();
+    } else {
+      res.className = 'notif success mt-16';
+      document.getElementById('bus-result-title').textContent = `✅ Correct — give a drink!`;
+      document.getElementById('bus-result-desc').textContent = `Card: ${card.value}${card.suit}. ${busLength - busStep} to go…`;
+      document.getElementById('bus-next-area').classList.remove('hidden');
+    }
+  } else {
+    // Wrong — drink and restart from card 1
+    busTotal++;
+    busCards = [];
+    busStep = 0;
+    res.className = 'notif danger mt-16';
+    document.getElementById('bus-result-title').textContent = `❌ Wrong — drink and restart!`;
+    document.getElementById('bus-result-desc').textContent =
+      `Card was ${card.value}${card.suit}. Back to card 1 — must get all ${busLength} correct in a row.`;
+    document.getElementById('bus-next-area').classList.remove('hidden');
+    renderBusDots();
+    updateBusCardsDisplay();
+  }
+}
+
+function nextBusStep() {
+  askBusQuestion();
+}
+
+function showBusWin() {
+  document.getElementById('bus-question-box').style.display = 'none';
+  document.getElementById('bus-win').classList.remove('hidden');
+  document.getElementById('bus-win-desc').textContent =
+    `${busRiders[busRiderIdx].name} got off the bus after ${busTotal} restart${busTotal !== 1 ? 's' : ''}!`;
+  renderBusDots();
+
+  busRiderIdx++;
+  if (busRiderIdx < busRiders.length) {
+    setTimeout(() => {
+      document.getElementById('bus-question-box').style.display = '';
+      startBusRide();
+    }, 2500);
+  }
+}
+
+function updateBusCardsDisplay() {
+  const display = document.getElementById('bus-cards-display');
+  display.innerHTML = Array.from({length: busLength}, (_, i) => {
+    const card = busCards[i];
+    const lbl = i === 0 ? 'Red/Black' : 'Higher/Lower';
+    return `<div class="bus-card-slot">
+      <div class="bus-q-label">C${i+1}: ${lbl}</div>
+      ${card ? cardHTML(card, 'sm flipped-reveal') : cardHTML(null, 'sm')}
+    </div>`;
+  }).join('');
+}
+
+function renderBusDots() {
+  const container = document.getElementById('bus-dots');
+  container.innerHTML = Array.from({length: busLength}, (_, i) => {
+    const cls = i < busStep ? 'correct' : 'pending';
+    return `<div class="bus-dot ${cls}"></div>`;
+  }).join('');
+}
+
+function setPhaseStep(n) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById(`ps-${i}`);
+    el.className = 'phase-step' + (i === n ? ' active' : i < n ? ' done' : '');
+  }
+}
+
+function resetGame() {
+  document.getElementById('setup-panel').classList.remove('hidden');
+  document.getElementById('game-area').classList.add('hidden');
+  document.getElementById('phase1').classList.remove('hidden');
+  document.getElementById('phase2').classList.add('hidden');
+  document.getElementById('phase3').classList.add('hidden');
+  document.getElementById('bus-question-box').style.display = '';
+}
+
+restoreRoster();
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f0b429">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Card Games">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>The Grid</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 700px) { .grid-layout { grid-template-columns: 1fr; } }
+
+    /* 3x3 pile grid */
+    .pile-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      max-width: 420px;
+      margin: 0 auto 20px;
+    }
+    .pile-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .pile-wrapper {
+      position: relative;
+      width: 90px;
+      height: 126px;
+    }
+    .pile-wrapper .card {
+      position: absolute;
+      top: 0; left: 0;
+      width: 90px;
+      height: 126px;
+      border-radius: 8px;
+    }
+    /* stack shadow */
+    .pile-wrapper::before,
+    .pile-wrapper::after {
+      content: '';
+      position: absolute;
+      width: 90px;
+      height: 126px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .pile-wrapper::before { top: -4px; left: 3px; z-index: 0; }
+    .pile-wrapper::after  { top: -8px; left: 6px; z-index: -1; }
+    .pile-wrapper .card { z-index: 1; }
+
+    .pile-cell.selectable .pile-wrapper .card {
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .pile-cell.selectable .pile-wrapper .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.5);
+    }
+    .pile-cell.selected .pile-wrapper .card {
+      box-shadow: 0 0 0 3px var(--gold), 0 6px 20px rgba(0,0,0,0.5) !important;
+      transform: translateY(-4px);
+    }
+    /* "Resting" = the pile just played; next player must pick a different one.
+       Styled as informational (blue), NOT as a failure state. */
+    .pile-cell.locked .pile-wrapper .card {
+      opacity: 0.85;
+      cursor: not-allowed;
+      outline: 2px dashed var(--blue);
+      outline-offset: 3px;
+      filter: saturate(0.65);
+    }
+    .pile-cell.unflip-target .pile-wrapper .card {
+      cursor: pointer;
+      box-shadow: 0 0 0 3px var(--green) !important;
+      animation: pulse-green 1s infinite;
+    }
+    @keyframes pulse-green {
+      0%,100% { box-shadow: 0 0 0 3px var(--green), 0 0 0 0 rgba(46,204,113,0.4); }
+      50%      { box-shadow: 0 0 0 3px var(--green), 0 0 0 8px rgba(46,204,113,0); }
+    }
+    @keyframes dealCard {
+      0%   { transform: translateY(-60px) translateX(8px) rotate(-12deg) scale(0.72); opacity: 0; }
+      55%  { transform: translateY(6px) translateX(-1px) rotate(1.5deg) scale(1.05); opacity: 1; }
+      78%  { transform: translateY(-3px) rotate(-0.5deg) scale(0.99); }
+      100% { transform: translateY(0) rotate(0) scale(1); opacity: 1; }
+    }
+    .card.dealing {
+      animation: dealCard 0.45s cubic-bezier(0.22, 1.1, 0.55, 1);
+    }
+
+    /* Wrong result X overlay */
+    .card-x-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(231,76,60,0.22);
+      border-radius: 8px;
+      border: 3px solid var(--accent);
+      pointer-events: none;
+      animation: wrongFlash 0.35s ease-out;
+    }
+    .card-x-overlay::after {
+      content: '✕';
+      font-size: 3.2rem;
+      font-weight: 900;
+      color: var(--accent);
+      text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      line-height: 1;
+    }
+    @keyframes wrongFlash {
+      0%   { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+      50%  { opacity: 1; transform: scale(1.18) rotate(4deg); }
+      80%  { transform: scale(0.96) rotate(-1deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+
+    /* Pile flip-out */
+    .pile-wrapper.flipping {
+      animation: pileFlipOut 0.22s ease-in forwards;
+    }
+    @keyframes pileFlipOut {
+      0%   { transform: perspective(700px) rotateY(0deg); }
+      100% { transform: perspective(700px) rotateY(90deg); opacity: 0.3; }
+    }
+
+    /* Face-down card flip-in */
+    .card.face-down.flip-in {
+      animation: faceDownIn 0.28s ease-out;
+    }
+    @keyframes faceDownIn {
+      0%   { transform: perspective(700px) rotateY(-90deg); opacity: 0.3; }
+      100% { transform: perspective(700px) rotateY(0deg); opacity: 1; }
+    }
+    .pile-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: 0.3px;
+    }
+    .pile-label.locked-label { color: var(--blue); }
+
+    /* Guess buttons */
+    .guess-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .guess-btn {
+      flex: 1;
+      max-width: 120px;
+      padding: 12px 8px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+      text-align: center;
+    }
+    .guess-btn:hover { border-color: var(--gold); background: var(--surface); }
+    .guess-btn:active { transform: scale(0.96); }
+    .guess-btn.higher:hover { border-color: var(--green); }
+    .guess-btn.lower:hover  { border-color: var(--accent); }
+    .guess-btn.same:hover   { border-color: var(--blue); }
+    .guess-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+    /* Instruction bar */
+    .instruction-bar {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .instruction-bar strong { color: var(--gold); }
+    .instruction-bar.highlight { border-color: var(--gold); color: var(--text); }
+    .instruction-bar.unflip-mode { border-color: var(--green); color: var(--green); font-weight: 700; }
+
+    /* Status stats */
+    .stats-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat-pill {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .stat-pill .val { font-size: 1.2rem; font-weight: 800; color: var(--gold); }
+    .stat-pill .lbl { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+
+    /* Event log */
+    .event-log {
+      max-height: 320px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .log-entry {
+      background: var(--surface2);
+      border-radius: 6px;
+      padding: 7px 11px;
+      font-size: 0.82rem;
+      border-left: 3px solid var(--border);
+      line-height: 1.4;
+    }
+    .log-entry.correct  { border-left-color: var(--green); }
+    .log-entry.wrong    { border-left-color: var(--accent); }
+    .log-entry.same     { border-left-color: var(--blue); }
+    .log-entry.event    { border-left-color: var(--gold); }
+
+    /* End screen overlay */
+    .end-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      backdrop-filter: blur(6px);
+    }
+    .end-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 48px;
+      text-align: center;
+      max-width: 420px;
+    }
+    .end-card.lose { border-color: var(--accent); }
+    .end-card.win  { border-color: var(--green); }
+    .end-icon { font-size: 4rem; margin-bottom: 12px; }
+    .end-title { font-size: 1.8rem; font-weight: 900; margin-bottom: 10px; }
+    .end-card.lose .end-title { color: var(--accent); }
+    .end-card.win  .end-title { color: var(--green); }
+    .end-desc { color: var(--muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; }
+
+    /* Player turn */
+    .turn-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .turn-name { font-size: 1.1rem; font-weight: 800; color: var(--gold); }
+    .turn-sub  { font-size: 0.8rem; color: var(--muted); margin-top: 3px; }
+
+    .player-list-order {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="topbar-brand" href="index.html">♠ Card <em>Games</em></a>
+  <a class="topbar-back" href="index.html">← Back</a>
+</nav>
+
+<div class="page wide">
+  <div class="page-title">🔲 The Grid</div>
+  <div class="page-sub">Race to empty the deck before all 9 piles go face down.</div>
+
+  <button class="rules-toggle" onclick="toggleRules(this)">
+    📖 How to Play <span class="arrow">▼</span>
+  </button>
+  <div class="rules-body" id="rules-body">
+    <h3>Setup</h3>
+    <p>Deal one card face-up to each of the 9 piles in a 3×3 grid. The remaining deck sits in the middle.</p>
+
+    <h3>Taking a Turn</h3>
+    <ol>
+      <li>Pick any face-up pile — <strong>except the one played on the previous turn</strong> (shown in blue as <strong style="color:var(--blue)">⏳ resting</strong> — it's fine, nobody got it wrong, it just needs a turn off).</li>
+      <li>Guess whether the next card from the deck will be <strong>Higher</strong>, <strong>Lower</strong>, or <strong>Same</strong> rank as that pile's top card.</li>
+      <li>Flip the top card of the deck onto your chosen pile.</li>
+    </ol>
+
+    <h3>Outcomes</h3>
+    <ul>
+      <li><strong style="color:var(--green)">Correct (Higher/Lower):</strong> The new card becomes the pile's top card. Next player goes.</li>
+      <li><strong style="color:var(--blue)">Correct (Same):</strong> The new card becomes the top card AND you choose any face-down pile to flip back face-up.</li>
+      <li><strong style="color:var(--accent)">Wrong:</strong> The pile flips face-down. You drink.</li>
+    </ul>
+
+    <h3>Win / Lose</h3>
+    <ul>
+      <li><strong style="color:var(--accent)">All 9 piles face-down</strong> before the deck runs out → everyone chugs their entire drink.</li>
+      <li><strong style="color:var(--green)">Deck runs out</strong> before all piles go face-down → everyone wins! Take as many celebratory drinks as desired.</li>
+    </ul>
+  </div>
+
+  <!-- Setup -->
+  <div id="setup-panel" class="panel">
+    <div class="panel-title">Players</div>
+    <div class="setup-form">
+      <div class="player-list" id="player-list">
+        <div class="player-row"><input class="form-input" placeholder="Player 1" value="Player 1"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 2" value="Player 2"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+        <div class="player-row"><input class="form-input" placeholder="Player 3" value="Player 3"/><button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button></div>
+      </div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost btn-sm" onclick="addPlayerRow()">+ Add Player</button>
+        <button class="btn btn-gold btn-lg" onclick="startGame()">Deal the Grid →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game -->
+  <div id="game-area" class="hidden">
+    <div class="grid-layout">
+
+      <!-- Left: main game -->
+      <div>
+        <div class="stats-row">
+          <div class="stat-pill"><div class="val" id="stat-deck">43</div><div class="lbl">Cards Left</div></div>
+          <div class="stat-pill"><div class="val" id="stat-up">9</div><div class="lbl">Piles Up</div></div>
+          <div class="stat-pill"><div class="val" id="stat-down">0</div><div class="lbl">Piles Down</div></div>
+        </div>
+
+        <div class="instruction-bar" id="instruction-bar">
+          Pick a pile to begin.
+        </div>
+
+        <div class="card-table" style="padding: 20px 16px;">
+          <div class="pile-grid" id="pile-grid"></div>
+        </div>
+
+        <div class="guess-buttons hidden" id="guess-buttons">
+          <button class="guess-btn higher" onclick="makeGuess('higher')">⬆ Higher</button>
+          <button class="guess-btn same"   onclick="makeGuess('same')">= Same</button>
+          <button class="guess-btn lower"  onclick="makeGuess('lower')">⬇ Lower</button>
+        </div>
+
+        <div class="notif hidden mt-16" id="result-box">
+          <div class="notif-title" id="result-title"></div>
+          <div id="result-desc"></div>
+        </div>
+
+        <div class="mt-16 flex gap-8" style="justify-content:center;">
+          <button class="btn btn-gold btn-lg hidden" id="next-turn-btn" onclick="advanceTurn()">Next Player →</button>
+          <button class="btn btn-ghost" onclick="resetGame()">New Game</button>
+        </div>
+      </div>
+
+      <!-- Right: sidebar -->
+      <div>
+        <div class="turn-display">
+          <div class="turn-name" id="turn-name"></div>
+          <div class="turn-sub" id="turn-sub"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Turn Order</div>
+          <div class="player-list-order" id="player-order"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Event Log</div>
+          <div class="event-log" id="event-log">
+            <div class="text-muted text-sm">No turns yet…</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- End screen -->
+<div class="end-screen hidden" id="end-screen">
+  <div class="end-card" id="end-card">
+    <div class="end-icon" id="end-icon"></div>
+    <div class="end-title" id="end-title"></div>
+    <div class="end-desc" id="end-desc"></div>
+    <button class="btn btn-gold btn-lg" onclick="resetGame()">Play Again</button>
+  </div>
+</div>
+
+<script src="deck.js"></script>
+<script>
+// Ace is always high in The Grid
+function gridRank(card) {
+  return card.value === 'A' ? 14 : card.rank;
+}
+
+// ─── State ───
+let deck = [];
+let piles = []; // [{cards: [...], faceUp: bool}]
+let players = [];
+let currentPlayer = 0;
+let lastChosenPile = -1;   // pile index chosen on previous turn (locked out)
+let selectedPile = -1;     // pile chosen this turn (before guess)
+let pendingUnflip = false; // after correct "same" guess
+let gameActive = false;
+let logEntries = [];
+let dealingPileIdx = -1;
+let wrongResultIdx = -1;
+let newlyFlippedIdx = -1;
+let animating = false;
+
+// ─── Setup ───
+function startGame() {
+  const names = readPlayerNames();
+  players = names.map(name => ({ name }));
+  if (players.length < 2) { alert('Need at least 2 players.'); return; }
+  saveRoster(names);
+
+  deck = shuffle(createDeck());
+  // Deal 9 cards to 9 piles
+  piles = Array.from({ length: 9 }, () => ({ cards: [deck.pop()], faceUp: true }));
+
+  currentPlayer = 0;
+  lastChosenPile = -1;
+  selectedPile = -1;
+  pendingUnflip = false;
+  gameActive = true;
+  logEntries = [];
+  dealingPileIdx = -1;
+  wrongResultIdx = -1;
+  newlyFlippedIdx = -1;
+  animating = false;
+
+  document.getElementById('setup-panel').classList.add('hidden');
+  document.getElementById('game-area').classList.remove('hidden');
+  document.getElementById('end-screen').classList.add('hidden');
+  document.getElementById('result-box').classList.add('hidden');
+  document.getElementById('guess-buttons').classList.add('hidden');
+  document.getElementById('next-turn-btn').classList.add('hidden');
+
+  renderAll();
+  setInstruction(`<strong>${players[currentPlayer].name}</strong> — pick a pile.`);
+}
+
+// ─── Rendering ───
+function topCard(pile) {
+  return pile.cards[pile.cards.length - 1];
+}
+
+function renderAll() {
+  renderGrid();
+  renderSidebar();
+  renderStats();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('pile-grid');
+  grid.innerHTML = piles.map((pile, i) => {
+    const isSelected   = i === selectedPile;
+    const isFaceUp     = pile.faceUp;
+    const onlyOnePileUp = piles.filter(p => p.faceUp).length === 1;
+    const isLocked     = i === lastChosenPile && !pendingUnflip && !onlyOnePileUp && isFaceUp;
+    const isUnflipTarget = pendingUnflip && !isFaceUp;
+
+    let cellClass = 'pile-cell';
+    if (isSelected) cellClass += ' selected';
+    else if (isUnflipTarget) cellClass += ' unflip-target';
+    else if (isLocked) cellClass += ' locked';
+    else if (isFaceUp && gameActive && !pendingUnflip) cellClass += ' selectable';
+
+    const card = isFaceUp ? topCard(pile) : null;
+    const cardCount = pile.cards.length;
+    const labelText = isLocked ? '⏳ resting' : (isFaceUp ? `${cardCount} card${cardCount !== 1 ? 's' : ''}` : '💀 flipped');
+    const labelClass = isLocked ? 'pile-label locked-label' : 'pile-label';
+    const isDealing       = i === dealingPileIdx  && isFaceUp;
+    const isWrongResult   = i === wrongResultIdx  && isFaceUp;
+    const isNewlyFlipped  = i === newlyFlippedIdx && !isFaceUp;
+    const cardCls = isFaceUp ? (isDealing ? 'dealing' : '') : (isNewlyFlipped ? 'flip-in' : '');
+
+    return `
+      <div class="${cellClass}">
+        <div class="pile-wrapper" onclick="handlePileClick(${i})">
+          ${cardHTML(card, cardCls)}
+          ${isWrongResult ? '<div class="card-x-overlay"></div>' : ''}
+        </div>
+        <div class="${labelClass}">${labelText}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderSidebar() {
+  document.getElementById('turn-name').textContent = `${players[currentPlayer].name}'s turn`;
+  document.getElementById('turn-sub').textContent = pendingUnflip
+    ? 'Choose a face-down pile to unflip'
+    : (selectedPile === -1 ? 'Pick a pile' : `Pile ${selectedPile + 1} selected — guess!`);
+
+  const po = document.getElementById('player-order');
+  po.innerHTML = players.map((p, i) =>
+    `<div class="player-tag ${i === currentPlayer ? 'active' : ''}">${i === currentPlayer ? '→ ' : ''}${p.name}</div>`
+  ).join('');
+
+  const log = document.getElementById('event-log');
+  log.innerHTML = logEntries.length
+    ? logEntries.map(e => `<div class="log-entry ${e.type}">${e.msg}</div>`).join('')
+    : '<div class="text-muted text-sm">No turns yet…</div>';
+}
+
+function renderStats() {
+  document.getElementById('stat-deck').textContent = deck.length;
+  document.getElementById('stat-up').textContent   = piles.filter(p => p.faceUp).length;
+  document.getElementById('stat-down').textContent = piles.filter(p => !p.faceUp).length;
+}
+
+function setInstruction(html, mode = '') {
+  const bar = document.getElementById('instruction-bar');
+  bar.innerHTML = html;
+  bar.className = 'instruction-bar' + (mode ? ` ${mode}` : '');
+}
+
+// ─── Interaction ───
+function handlePileClick(i) {
+  if (!gameActive || animating) return;
+
+  // Unflip mode: clicking a face-down pile restores it
+  if (pendingUnflip) {
+    if (!piles[i].faceUp) {
+      piles[i].faceUp = true;
+      pendingUnflip = false;
+      addLog('same', `🔓 Pile ${i + 1} unflipped.`);
+      advanceTurn();
+    }
+    return;
+  }
+
+  // Normal mode: pick a face-up, non-locked pile
+  if (!piles[i].faceUp) return;
+  const onlyOnePileUp = piles.filter(p => p.faceUp).length === 1;
+  if (i === lastChosenPile && !onlyOnePileUp) {
+    setInstruction(`⏳ Pile ${i + 1} is <strong>resting</strong> — it was played last turn. Pick a different pile.`, 'highlight');
+    return;
+  }
+
+  selectedPile = i;
+  document.getElementById('guess-buttons').classList.remove('hidden');
+  setInstruction(`<strong>${players[currentPlayer].name}</strong> chose Pile ${i + 1} (${topCard(piles[i]).value}${topCard(piles[i]).suit}) — guess Higher, Same, or Lower?`, 'highlight');
+  renderGrid();
+}
+
+function makeGuess(guess) {
+  if (selectedPile === -1) return;
+
+  const pile = piles[selectedPile];
+  const oldCard = topCard(pile);
+  const newCard = deck.pop();
+  pile.cards.push(newCard);
+
+  document.getElementById('guess-buttons').classList.add('hidden');
+
+  let correct = false;
+  if (guess === 'higher') correct = gridRank(newCard) > gridRank(oldCard);
+  if (guess === 'lower')  correct = gridRank(newCard) < gridRank(oldCard);
+  if (guess === 'same')   correct = gridRank(newCard) === gridRank(oldCard);
+
+  const guessLabel = guess === 'higher' ? '⬆ Higher' : guess === 'lower' ? '⬇ Lower' : '= Same';
+  const pName = players[currentPlayer].name;
+  const rb = document.getElementById('result-box');
+  const rt = document.getElementById('result-title');
+  const rd = document.getElementById('result-desc');
+
+  if (correct) {
+    if (guess === 'same') {
+      rb.className = 'notif info mt-16';
+      rt.textContent = `✅ Correct — Same! Choose a pile to unflip.`;
+      rd.textContent = `Both ${oldCard.value}. Pick any face-down pile to bring back.`;
+      addLog('same', `${pName}: guessed Same on Pile ${selectedPile + 1} — correct! Unflipping a pile.`);
+
+      const anyDown = piles.some(p => !p.faceUp);
+      if (anyDown) {
+        const dealtPileIdx = selectedPile;
+        pendingUnflip = true;
+        lastChosenPile = dealtPileIdx; // safe to set now because pendingUnflip bypasses locked style
+        selectedPile = -1;
+        animating = true;
+        dealingPileIdx = dealtPileIdx;
+        renderAll();
+        dealingPileIdx = -1;
+        setTimeout(() => {
+          animating = false;
+          setInstruction('✅ Same! Now click a face-down pile to unflip it.', 'unflip-mode');
+          renderAll();
+          rb.classList.remove('hidden');
+          document.getElementById('next-turn-btn').classList.add('hidden');
+          checkEndConditions();
+        }, 460);
+        return; // don't advance turn yet
+      } else {
+        rd.textContent += ' (No piles are face-down — bonus!)';
+      }
+    } else {
+      rb.className = 'notif success mt-16';
+      rt.textContent = `✅ Correct!`;
+      rd.textContent = `${pName} guessed ${guessLabel} — ${oldCard.value} (${gridRank(oldCard)}) → ${newCard.value} (${gridRank(newCard)}).`;
+      addLog('correct', `${pName}: ${guessLabel} on Pile ${selectedPile + 1} (${oldCard.value}→${newCard.value}${newCard.suit}) — correct!`);
+    }
+  } else {
+    // Wrong: play deal → X overlay → flip sequence
+    rb.className = 'notif danger mt-16';
+    rt.textContent = `❌ Wrong — Pile ${selectedPile + 1} flips down. ${pName} drinks!`;
+    rd.textContent = `Guessed ${guessLabel} — ${oldCard.value} (${gridRank(oldCard)}) → ${newCard.value} (${gridRank(newCard)}).`;
+    addLog('wrong', `${pName}: ${guessLabel} on Pile ${selectedPile + 1} (${oldCard.value}→${newCard.value}${newCard.suit}) — wrong! Pile flipped, drink up.`);
+
+    const wrongIdx = selectedPile;
+    animating = true;
+    lastChosenPile = wrongIdx;
+    dealingPileIdx = wrongIdx;
+    selectedPile = -1;
+
+    // Step 1: deal animation
+    renderAll();
+    dealingPileIdx = -1;
+
+    // Step 2: show red X after card has landed
+    setTimeout(() => {
+      wrongResultIdx = wrongIdx;
+      renderGrid();
+
+      // Step 3: flip pile face-down
+      setTimeout(() => {
+        const wrapper = document.querySelectorAll('#pile-grid .pile-wrapper')[wrongIdx];
+        if (wrapper) wrapper.classList.add('flipping');
+
+        // Step 4: mid-flip — swap to face-down card
+        setTimeout(() => {
+          piles[wrongIdx].faceUp = false;
+          wrongResultIdx = -1;
+          newlyFlippedIdx = wrongIdx;
+          renderAll();
+          newlyFlippedIdx = -1;
+          animating = false;
+
+          if (checkEndConditions()) return;
+          rb.classList.remove('hidden');
+          document.getElementById('next-turn-btn').classList.remove('hidden');
+        }, 220);
+      }, 650);
+    }, 480);
+
+    return; // async from here — skip the normal flow below
+  }
+
+  // Animate deal onto pile BEFORE applying the lock (opacity 0.4 on locked piles would fight the animation)
+  const dealtPileIdx = selectedPile;
+  selectedPile = -1;
+  animating = true;
+  dealingPileIdx = dealtPileIdx;
+  renderAll();
+  dealingPileIdx = -1;
+  setTimeout(() => {
+    lastChosenPile = dealtPileIdx;
+    animating = false;
+    renderAll();
+    if (checkEndConditions()) return;
+    rb.classList.remove('hidden');
+    document.getElementById('next-turn-btn').classList.remove('hidden');
+  }, 460);
+}
+
+function advanceTurn() {
+  currentPlayer = (currentPlayer + 1) % players.length;
+  selectedPile = -1;
+  document.getElementById('result-box').classList.add('hidden');
+  document.getElementById('next-turn-btn').classList.add('hidden');
+  setInstruction(`<strong>${players[currentPlayer].name}</strong> — pick a pile.`);
+  renderAll();
+}
+
+function addLog(type, msg) {
+  logEntries.unshift({ type, msg });
+  if (logEntries.length > 50) logEntries.pop();
+}
+
+// ─── End conditions ───
+function checkEndConditions() {
+  const allDown = piles.every(p => !p.faceUp);
+  const deckEmpty = deck.length === 0;
+
+  if (allDown) {
+    endGame('lose');
+    return true;
+  }
+  if (deckEmpty) {
+    endGame('win');
+    return true;
+  }
+  return false;
+}
+
+function endGame(result) {
+  gameActive = false;
+  const screen = document.getElementById('end-screen');
+  const card   = document.getElementById('end-card');
+  screen.classList.remove('hidden');
+
+  if (result === 'lose') {
+    const cardsLeft = deck.length;
+    const awayMsg = cardsLeft === 1 ? 'just 1 card away from winning!' : `${cardsLeft} cards away from winning!`;
+    card.className = 'end-card lose';
+    document.getElementById('end-icon').textContent  = '💀';
+    document.getElementById('end-title').textContent = 'ALL PILES DOWN!';
+    document.getElementById('end-desc').textContent  = `All 9 piles flipped face-down with ${cardsLeft} card${cardsLeft !== 1 ? 's' : ''} still left in the deck — ${awayMsg} Everyone chugs their entire drink!`;
+  } else {
+    card.className = 'end-card win';
+    document.getElementById('end-icon').textContent  = '🎉';
+    document.getElementById('end-title').textContent = 'DECK CLEARED!';
+    document.getElementById('end-desc').textContent  = 'You emptied the deck before all piles went down — everyone wins! Take as many celebratory drinks as desired.';
+  }
+}
+
+function resetGame() {
+  document.getElementById('end-screen').classList.add('hidden');
+  document.getElementById('setup-panel').classList.remove('hidden');
+  document.getElementById('game-area').classList.add('hidden');
+}
+
+restoreRoster();
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

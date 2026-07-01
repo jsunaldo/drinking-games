@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f0b429">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Card Games">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>Party Prompts – Card Drinking Games</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Category selector (setup) ── */
+    .cat-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .cat-btn {
+      flex: 1; min-width: 80px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .cat-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(240,180,41,0.1); }
+
+    /* ── Full-screen game overlay ── */
+    #screen-game {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+    }
+
+    .gc-card {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 24px 60px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      overflow: hidden;
+    }
+    .gc-card.cat-gs { background: linear-gradient(160deg, #ff9a44 0%, #fc6076 100%); }
+    .gc-card.cat-gc { background: linear-gradient(160deg, #a855f7 0%, #e11d48 100%); }
+
+    /* top bar */
+    .gc-topbar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 58px 0 16px;
+      pointer-events: none;
+    }
+    .gc-cat-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.65);
+      background: rgba(0,0,0,0.2);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .gc-counter {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.5);
+    }
+
+    /* menu button */
+    .gc-menu-btn {
+      position: absolute;
+      top: 10px; right: 10px;
+      z-index: 10;
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0,0,0,0.25);
+      color: rgba(255,255,255,0.75);
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .gc-menu-btn:active { background: rgba(0,0,0,0.4); }
+
+    /* main content */
+    .gc-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+    }
+    .gc-text {
+      font-size: clamp(1.1rem, 4.5vw, 1.55rem);
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.55;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .gc-outcomes {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .gc-outcome {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 18px;
+      border-radius: 14px;
+      text-align: left;
+    }
+    .gc-outcome.do   { background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.3); }
+    .gc-outcome.skip { background: rgba(0,0,0,0.2);        border: 1px solid rgba(255,255,255,0.12); }
+    .gc-outcome-icon { font-size: 1.15rem; flex-shrink: 0; }
+    .gc-outcome-label {
+      display: block;
+      font-size: 0.58rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 3px;
+    }
+    .gc-outcome-val {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.3;
+    }
+
+    /* bottom */
+    .gc-bottom {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .gc-tap-hint {
+      font-size: 0.58rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.3);
+      padding: 4px 0;
+    }
+    .gc-progress-bar { width: 100%; height: 3px; background: rgba(0,0,0,0.2); }
+    .gc-progress-fill { height: 100%; background: rgba(255,255,255,0.4); transition: width 0.35s ease; }
+
+    /* animation */
+    @keyframes gcSlideIn {
+      from { opacity: 0; transform: translateX(50px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .gc-slide-in { animation: gcSlideIn 0.22s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+    /* ── Game Over overlay ── */
+    #screen-gameover {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: var(--bg);
+      text-align: center;
+      padding: 32px 24px;
+    }
+    .go-emoji { font-size: 3.5rem; line-height: 1; }
+    .go-title { font-size: 2.4rem; font-weight: 900; color: var(--gold); letter-spacing: -1px; }
+    .go-sub { color: var(--muted); font-size: 0.95rem; max-width: 280px; }
+    .go-btns { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 280px; margin-top: 12px; }
+
+    /* ── Editor extras ── */
+    .custom-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .custom-item-text { font-size: 0.9rem; line-height: 1.4; }
+    .custom-item-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      align-items: center;
+    }
+    .custom-item-reward  { color: var(--green); }
+    .custom-item-penalty { color: var(--accent); }
+    .custom-item-actions { display: flex; justify-content: flex-end; }
+    .custom-list { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+    .form-2col { display: flex; gap: 10px; }
+    .form-2col > * { flex: 1; min-width: 0; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════ SETUP SCREEN ════════════════════════════════ -->
+<div id="screen-setup">
+  <nav class="topbar">
+    <a class="topbar-brand" href="index.html">♠ Card <em>Games</em></a>
+    <a class="topbar-back" href="index.html">← Back</a>
+  </nav>
+
+  <div class="page" style="max-width: 540px;">
+    <div class="page-title">🎭 Party <span style="color:var(--accent)">Prompts</span></div>
+    <div class="page-sub">Dares, duels, votes, confessions, and house rules that stick around. Skipping always costs more than doing it — and the spicy ones cost the most.</div>
+
+    <div class="panel">
+      <div class="panel-title">Players</div>
+      <div class="player-list" id="player-list"></div>
+      <button class="btn btn-ghost btn-sm" id="add-player-btn" style="margin-top:4px">+ Add Player</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Deck</div>
+      <div class="cat-group">
+        <button class="cat-btn active" data-cat="all">All Cards</button>
+        <button class="cat-btn" data-cat="gs">Getting Started</button>
+        <button class="cat-btn" data-cat="gc">Getting Crazy</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Deck Length</div>
+      <div class="cat-group">
+        <button class="len-btn cat-btn" data-len="25">Quick · 25</button>
+        <button class="len-btn cat-btn active" data-len="50">Standard · 50</button>
+        <button class="len-btn cat-btn" data-len="0">Marathon · All</button>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-primary btn-lg w-full" id="start-btn">Start Game</button>
+      <button class="btn btn-ghost btn-lg" id="editor-btn" title="Custom Prompts" style="padding-left:16px;padding-right:16px;">✏️</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ GAME SCREEN ════════════════════════════════ -->
+<div id="screen-game" class="hidden">
+  <div class="gc-card cat-gs" id="gc-card">
+    <div class="gc-topbar">
+      <span class="gc-cat-label" id="gc-cat-label">Getting Started</span>
+      <span class="gc-counter" id="gc-counter">1 / 50</span>
+    </div>
+
+    <button class="gc-menu-btn" id="gc-menu-btn" title="Menu">☰</button>
+
+    <div class="gc-body" id="gc-body">
+      <p class="gc-text" id="gc-text">Loading...</p>
+      <div class="gc-outcomes">
+        <div class="gc-outcome do">
+          <span class="gc-outcome-icon">✅</span>
+          <div>
+            <span class="gc-outcome-label">Do it</span>
+            <span class="gc-outcome-val" id="gc-reward">Give 2 drinks</span>
+          </div>
+        </div>
+        <div class="gc-outcome skip">
+          <span class="gc-outcome-icon">❌</span>
+          <div>
+            <span class="gc-outcome-label">Skip it</span>
+            <span class="gc-outcome-val" id="gc-penalty">Take 2 drinks</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gc-bottom">
+      <span class="gc-tap-hint">Tap anywhere to continue</span>
+      <div class="gc-progress-bar">
+        <div class="gc-progress-fill" id="gc-progress" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ GAME OVER SCREEN ════════════════════════════════ -->
+<div id="screen-gameover" class="hidden">
+  <div class="go-emoji">🎉</div>
+  <div class="go-title">Game Over</div>
+  <div class="go-sub">Hopefully everyone made it out alive.</div>
+  <div class="go-btns">
+    <button class="btn btn-primary btn-lg w-full" id="go-replay">Play Again (Same Players)</button>
+    <button class="btn btn-ghost btn-lg w-full" id="go-setup">New Game</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ EDITOR SCREEN ════════════════════════════════ -->
+<div id="screen-editor" class="hidden">
+  <nav class="topbar">
+    <a class="topbar-brand" href="#">✏️ Custom <em>Prompts</em></a>
+    <button class="topbar-back" id="editor-back-btn">← Back</button>
+  </nav>
+
+  <div class="page" style="max-width: 560px;">
+    <div class="panel">
+      <div class="panel-title">Add a Prompt</div>
+      <form id="add-prompt-form">
+        <div class="form-group">
+          <label class="form-label">Prompt Text</label>
+          <textarea id="ep-text" class="form-input" rows="3"
+            placeholder='{player}, what&apos;s the most embarrassing song on your phone? — use {player} and {player2} for names'
+            required></textarea>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">
+            Use {player} and {player2} to insert player names automatically
+          </div>
+        </div>
+        <div class="form-2col">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" style="color:var(--green)">✅ Do it (reward)</label>
+            <input id="ep-reward" class="form-input" type="text" placeholder="Give 3 drinks" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" style="color:var(--accent)">❌ Skip it (penalty)</label>
+            <input id="ep-penalty" class="form-input" type="text" placeholder="Take 3 drinks" required>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:12px; margin-bottom:14px">
+          <label class="form-label">Category</label>
+          <select id="ep-cat" class="form-input">
+            <option value="gs">Getting Started</option>
+            <option value="gc">Getting Crazy</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Add Prompt</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">
+        Your Prompts
+        <span id="custom-count" style="color:var(--muted);font-weight:400;font-size:0.8rem;"> (0)</span>
+      </div>
+      <div class="custom-list" id="custom-list">
+        <div style="color:var(--muted);font-size:0.875rem;text-align:center;padding:16px 0;">
+          No custom prompts yet. Add one above!
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// PROMPTS  (np = number of player placeholders used: 0, 1, or 2)
+// ══════════════════════════════════════════════════════════════════════════
+// Card shapes:
+//   reward+penalty → "Do it / Skip it" choice card (skip always costs more than doing)
+//   neither        → instant card (outcome is in the text itself)
+//   endText        → persistent rule card; its end-card is auto-inserted 5–8 cards later
+const BUILTIN = [
+  // ═══ GETTING STARTED — everyone-who instants ═══
+  { id:1,  cat:'gs', np:0, text:"Everyone who has ever been kicked out of a bar, drink 3." },
+  { id:2,  cat:'gs', np:0, text:"Everyone who slept past noon in the last week, drink 2." },
+  { id:3,  cat:'gs', np:0, text:"Everyone wearing socks right now, drink 1. No socks? Drink 2 — who are you?" },
+  { id:4,  cat:'gs', np:0, text:"Everyone who has ever cried at a Pixar movie, drink 2." },
+  { id:5,  cat:'gs', np:0, text:"Everyone who has ever pretended to know a song at a concert, drink 2." },
+  { id:6,  cat:'gs', np:0, text:"Everyone who has ever called a teacher 'mom', drink 3." },
+  { id:7,  cat:'gs', np:0, text:"Everyone who has ever walked into a glass door, drink 2." },
+  { id:8,  cat:'gs', np:0, text:"Everyone with over 5,000 unread emails, drink 3." },
+  { id:9,  cat:'gs', np:0, text:"Everyone who has ever laughed at the worst possible moment at a funeral or wedding, drink 3." },
+  { id:10, cat:'gs', np:0, text:"Everyone who has ordered delivery from a place within walking distance, drink 2." },
+  { id:11, cat:'gs', np:0, text:"Everyone who has ever waved back at someone who was waving at the person behind them, drink 2." },
+  { id:12, cat:'gs', np:0, text:"Everyone who has been on a dating app in the last month, drink 2." },
+  { id:13, cat:'gs', np:0, text:"Everyone who has ever fake-answered their phone to dodge a conversation, drink 2." },
+  { id:14, cat:'gs', np:0, text:"Everyone who still knows an ex's phone number by heart, drink 3." },
+  { id:15, cat:'gs', np:0, text:"Everyone who has eaten food off the floor well past the 5-second rule, drink 2." },
+  { id:16, cat:'gs', np:0, text:"Everyone who has ever gotten lost in their own hometown, drink 2." },
+  { id:17, cat:'gs', np:0, text:"Everyone who has ever sent a text complaining about someone TO that someone, drink 4." },
+  { id:18, cat:'gs', np:0, text:"Everyone in a group chat with a name they can't say in front of their boss, drink 2." },
+  { id:19, cat:'gs', np:0, text:"Everyone whose phone battery is under 20% right now, drink 3. Plan better." },
+  { id:20, cat:'gs', np:0, text:"Everyone who has ever lied about their height, drink 2." },
+  { id:21, cat:'gs', np:1, text:"Everyone taller than {player}, drink 1." },
+  { id:22, cat:'gs', np:0, text:"Last person to touch the floor drinks 3. Go." },
+
+  // ═══ GETTING STARTED — dares & performances ═══
+  { id:23, cat:'gs', np:1, text:"{player}, do a celebrity impression until someone guesses who it is.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+  { id:24, cat:'gs', np:1, text:"{player}, sing the chorus of the last song you listened to.",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:25, cat:'gs', np:1, text:"{player}, show everyone your best dance move. Full commitment.",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:26, cat:'gs', np:1, text:"{player}, talk about cheese for 30 seconds without stopping.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+  { id:27, cat:'gs', np:2, text:"{player}, do an impression of {player2} ordering at a drive-thru.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+  { id:28, cat:'gs', np:1, text:"{player}, make the group laugh in 30 seconds. Anyone who laughs drinks 2. Nobody laughs? You drink 3." },
+  { id:29, cat:'gs', np:1, text:"{player}, text a friend who isn't here just the word 'ok'. No context. No follow-up tonight.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+  { id:30, cat:'gs', np:1, text:"{player}, let the group pick a new contact name for one person in your phone.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+  { id:31, cat:'gs', np:1, text:"{player}, balance a (closed!) drink on your head for 10 seconds.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+  { id:32, cat:'gs', np:1, text:"{player}, freestyle rap about the person on your left for 20 seconds.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+  { id:33, cat:'gs', np:1, text:"{player}, deliver your next 3 sentences in dramatic slow motion.",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:34, cat:'gs', np:2, text:"{player}, do 10 squats while maintaining unbroken eye contact with {player2}.",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:35, cat:'gs', np:1, text:"{player}, reenact how you play it off when you trip in public.",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:36, cat:'gs', np:2, text:"{player}, roast {player2} for 20 seconds. Keep it fun, make it sting.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+
+  // ═══ GETTING STARTED — duels & mini-games ═══
+  { id:37, cat:'gs', np:2, text:"{player} vs {player2}: staring contest. Loser drinks 3." },
+  { id:38, cat:'gs', np:2, text:"{player} vs {player2}: rock-paper-scissors, best of 3. Loser drinks 3." },
+  { id:39, cat:'gs', np:2, text:"{player} vs {player2}: thumb war. Loser drinks 2." },
+  { id:40, cat:'gs', np:2, text:"{player} vs {player2}: first to name 5 countries starting with B. Loser drinks 3." },
+  { id:41, cat:'gs', np:2, text:"{player} vs {player2}: plank-off. First to drop drinks 3." },
+  { id:42, cat:'gs', np:2, text:"{player} vs {player2}: compliment battle. Alternate compliments — first to hesitate drinks 2." },
+  { id:43, cat:'gs', np:2, text:"{player} vs {player2}: make each other laugh. First to crack drinks 3." },
+  { id:44, cat:'gs', np:2, text:"{player} vs {player2}: name movies back and forth. First to blank or repeat drinks 3." },
+  { id:45, cat:'gs', np:2, text:"{player} vs {player2}: whoever's phone battery is lower drinks 2." },
+  { id:46, cat:'gs', np:2, text:"{player} vs {player2}: arm wrestle. Loser drinks 3." },
+  { id:47, cat:'gs', np:2, text:"{player} vs {player2}: hold your breath. First to give up drinks 3." },
+  { id:48, cat:'gs', np:2, text:"{player} vs {player2}: last to touch something blue drinks 2. Go!" },
+
+  // ═══ GETTING STARTED — questions ═══
+  { id:49, cat:'gs', np:1, text:"{player}, what's your most irrational fear?",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:50, cat:'gs', np:1, text:"{player}, what's the dumbest way you've ever injured yourself?",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:51, cat:'gs', np:1, text:"{player}, what's your guilty-pleasure song? Play 10 seconds of it.",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:52, cat:'gs', np:1, text:"{player}, what's the weirdest thing you've googled this month? Paraphrasing allowed.",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:53, cat:'gs', np:1, text:"{player}, what's a hill you'll die on that nobody here agrees with?",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:54, cat:'gs', np:1, text:"{player}, if you had to trade lives with someone in this room, who and why?",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:55, cat:'gs', np:1, text:"{player}, what's your worst wrong-chat text story?",
+    reward:"Give 2 drinks", penalty:"Take 3 drinks" },
+  { id:56, cat:'gs', np:1, text:"{player}, tell the group one thing nobody here knows about you.",
+    reward:"Give 3 drinks", penalty:"Take 4 drinks" },
+
+  // ═══ GETTING STARTED — rule cards (end-card auto-inserted later) ═══
+  { id:57, cat:'gs', np:1, text:"👑 NEW RULE: {player} is now 'Your Majesty'. Anyone who calls them anything else drinks 1.",
+    endText:"📢 Rule over: {player} is no longer royalty. Bow one last time." },
+  { id:58, cat:'gs', np:1, text:"🇬🇧 NEW RULE: {player} must speak in a British accent. Drink 1 every time you slip.",
+    endText:"📢 Rule over: {player} may retire the accent. Cheerio." },
+  { id:59, cat:'gs', np:0, text:"🤐 NEW RULE: nobody may say the word 'drink'. Violators drink 2.",
+    endText:"📢 Rule over: the word 'drink' is legal again. Drink drink drink." },
+  { id:60, cat:'gs', np:1, text:"💼 NEW RULE: {player} must end every sentence with 'in my professional opinion'. Drink 1 per slip.",
+    endText:"📢 Rule over: {player} is off the clock, in my professional opinion." },
+  { id:61, cat:'gs', np:0, text:"🫵 NEW RULE: no first names. Point, describe, or use nicknames. Violators drink 1.",
+    endText:"📢 Rule over: names are back. Reintroduce yourselves." },
+  { id:62, cat:'gs', np:2, text:"😉 NEW RULE: {player} must wink at {player2} every time {player2} speaks. Group enforces — miss one, drink 1.",
+    endText:"📢 Rule over: {player} can stop winking. {player2} may relax." },
+  { id:63, cat:'gs', np:0, text:"🖐 NEW RULE: left hands only for drinking. Wrong hand = drink 2 more.",
+    endText:"📢 Rule over: right hands are back in play." },
+
+  // ═══ GETTING STARTED — votes ═══
+  { id:64, cat:'gs', np:0, text:"Vote: who would survive longest in a zombie apocalypse? Winner gives 3." },
+  { id:65, cat:'gs', np:0, text:"Vote: who has the worst sense of direction? They drink 2." },
+  { id:66, cat:'gs', np:0, text:"Vote: who is most likely to become accidentally famous? They give 3." },
+  { id:67, cat:'gs', np:0, text:"Vote: who takes longest to text back? They drink 2." },
+  { id:68, cat:'gs', np:0, text:"Vote: who would be the worst person to be stuck in an elevator with? They drink 2, then get 30 seconds to defend themselves." },
+  { id:69, cat:'gs', np:0, text:"Vote: whose phone would be most incriminating if it leaked right now? They drink 3." },
+  { id:70, cat:'gs', np:0, text:"Vote: who is most likely to end up on a reality show? They give 2." },
+
+  // ═══ GETTING CRAZY — everyone-who instants ═══
+  { id:71, cat:'gc', np:0, text:"Everyone who has ever ghosted someone, drink 3." },
+  { id:72, cat:'gc', np:0, text:"Everyone who has ever been ghosted, drink 2. It wasn't your fault. Probably." },
+  { id:73, cat:'gc', np:0, text:"Everyone who has kissed someone in this room, drink 3." },
+  { id:74, cat:'gc', np:0, text:"Everyone who has ever sent a risky text and immediately flipped their phone face-down, drink 3." },
+  { id:75, cat:'gc', np:0, text:"Everyone who has ever had a crush on a friend's ex, drink 3." },
+  { id:76, cat:'gc', np:0, text:"Everyone who has hooked up with someone whose name they didn't know, drink 4." },
+  { id:77, cat:'gc', np:0, text:"Everyone who has ever snooped through a partner's phone, drink 3." },
+  { id:78, cat:'gc', np:0, text:"Everyone who has ever been walked in on, drink 3." },
+  { id:79, cat:'gc', np:0, text:"Everyone who has a dating-app screenshot saved just to show friends, drink 3." },
+  { id:80, cat:'gc', np:0, text:"Everyone who has ever done a walk of shame, drink 3." },
+  { id:81, cat:'gc', np:0, text:"Everyone who has ever re-followed an ex 'by accident', drink 3." },
+  { id:82, cat:'gc', np:0, text:"Everyone who has ever faked... enthusiasm, drink 3. Interpret that however you like." },
+  { id:83, cat:'gc', np:0, text:"Everyone with a tattoo or piercing they regret, drink 2." },
+  { id:84, cat:'gc', np:0, text:"Everyone who has ever drunk-dialed someone they shouldn't have, drink 3." },
+  { id:85, cat:'gc', np:0, text:"Everyone whose current crush is NOT in this room, drink 2. If they ARE in this room, drink 4." },
+  { id:86, cat:'gc', np:0, text:"Everyone who has ever lied about being busy just to stay home alone, drink 2." },
+
+  // ═══ GETTING CRAZY — dares & performances (spicy = higher skip cost) ═══
+  { id:87, cat:'gc', np:1, text:"{player}, give a 30-second TED talk on why you're a catch.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:88, cat:'gc', np:1, text:"{player}, show the group your most-used emojis and explain the top 3.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:89, cat:'gc', np:2, text:"{player}, let {player2} post ONE word as your story/status. Just one word.",
+    reward:"Give 4 drinks", penalty:"Take 6 drinks" },
+  { id:90, cat:'gc', np:1, text:"{player}, demonstrate your best flirting move on an empty chair.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:91, cat:'gc', np:1, text:"{player}, describe your latest romantic interest using only food metaphors.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:92, cat:'gc', np:2, text:"{player}, serenade {player2} for 15 seconds like it's the finale of a rom-com.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:93, cat:'gc', np:1, text:"{player}, show the group your last 5 selfie attempts. All of them. Yes, including that one.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:94, cat:'gc', np:1, text:"{player}, make your most convincing fake-orgasm face. Just the face. Total silence.",
+    reward:"Give 4 drinks", penalty:"Take 6 drinks" },
+  { id:95, cat:'gc', np:1, text:"{player}, type 'I want' in your phone keyboard and read the autocomplete suggestions out loud.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:96, cat:'gc', np:2, text:"{player}, give {player2} a dramatic shoulder massage for 20 seconds while keeping eye contact with the rest of the group.",
+    reward:"Give 4 drinks", penalty:"Take 6 drinks" },
+  { id:97, cat:'gc', np:2, text:"{player}, whisper something in {player2}'s ear that would make them blush.",
+    reward:"Give 4 drinks", penalty:"Take 5 drinks" },
+  { id:98, cat:'gc', np:2, text:"{player}, swap one visible item of clothing with {player2} for the next 3 cards.",
+    reward:"Give 4 drinks", penalty:"Take 6 drinks" },
+
+  // ═══ GETTING CRAZY — duels ═══
+  { id:99,  cat:'gc', np:2, text:"{player} vs {player2}: find the most embarrassing photo of yourself. Group votes whose is worse — that person gives 3." },
+  { id:100, cat:'gc', np:2, text:"{player} vs {player2}: flirt-off. Same pickup line, group picks the winner. Loser drinks 4." },
+  { id:101, cat:'gc', np:2, text:"{player} vs {player2}: worst date story. Group votes — winner gives 3." },
+  { id:102, cat:'gc', np:2, text:"{player} vs {player2}: unbroken eye contact while the group counts to 15. First to laugh drinks 3." },
+  { id:103, cat:'gc', np:2, text:"{player} vs {player2}: sexiest walk across the room. Group votes. Loser drinks 3." },
+  { id:104, cat:'gc', np:2, text:"{player} vs {player2}: whoever has been single longer gives 2. The other drinks 2." },
+
+  // ═══ GETTING CRAZY — questions (spicy = higher skip cost) ═══
+  { id:105, cat:'gc', np:1, text:"{player}, what's your all-time worst date story?",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:106, cat:'gc', np:1, text:"{player}, what's the biggest romantic L you've ever taken?",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:107, cat:'gc', np:1, text:"{player}, describe your worst kiss ever. No names — set the scene.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:108, cat:'gc', np:1, text:"{player}, what's something you've done that your parents can NEVER find out about?",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:109, cat:'gc', np:1, text:"{player}, most embarrassing hookup-adjacent story. Names optional.",
+    reward:"Give 4 drinks", penalty:"Take 6 drinks" },
+  { id:110, cat:'gc', np:1, text:"{player}, have you ever had a crush on someone in this room? Answer with exactly one word: yes or no.",
+    reward:"Give 3 drinks", penalty:"Take 6 drinks" },
+  { id:111, cat:'gc', np:1, text:"{player}, what's the wildest location you've ever... you know?",
+    reward:"Give 4 drinks", penalty:"Take 6 drinks" },
+  { id:112, cat:'gc', np:1, text:"{player}, show one message from your most chaotic group chat. Screenshots or it didn't happen.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:113, cat:'gc', np:1, text:"{player}, what's a red flag you ignored and paid dearly for?",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:114, cat:'gc', np:1, text:"{player}, what's the pettiest reason you've stopped seeing someone?",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:115, cat:'gc', np:1, text:"{player}, celebrity hall pass: who is it? Defend your choice.",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+  { id:116, cat:'gc', np:1, text:"{player}, what's one thing you pretend to hate but secretly love?",
+    reward:"Give 3 drinks", penalty:"Take 5 drinks" },
+
+  // ═══ GETTING CRAZY — rule cards ═══
+  { id:117, cat:'gc', np:2, text:"💑 NEW RULE: {player} and {player2} are now dating. Refer to each other only as 'babe'. Drink 1 per slip.",
+    endText:"📢 Rule over: {player} and {player2} have amicably broken up. It's not you, it's the deck." },
+  { id:118, cat:'gc', np:2, text:"👃 NEW RULE: {player} must touch their nose whenever {player2} drinks. Group enforces — miss one, drink 1.",
+    endText:"📢 Rule over: {player}'s nose is finally safe." },
+  { id:119, cat:'gc', np:1, text:"👀 NEW RULE: anyone who makes eye contact with {player} drinks 1. {player}, weaponize this.",
+    endText:"📢 Rule over: it's safe to look at {player} again." },
+  { id:120, cat:'gc', np:1, text:"🍼 NEW RULE: {player} must include 'daddy' or 'baby' in every sentence. Drink 1 per slip.",
+    endText:"📢 Rule over: {player} may speak like an adult again. Thank god." },
+  { id:121, cat:'gc', np:1, text:"🤫 NEW RULE: {player} may only whisper. Anyone who asks them to repeat themselves drinks 1.",
+    endText:"📢 Rule over: {player} has their voice back." },
+  { id:122, cat:'gc', np:2, text:"😂 NEW RULE: {player} must laugh using {player2}'s laugh. Own laugh slips out? Drink 1.",
+    endText:"📢 Rule over: {player} gets their own laugh back." },
+
+  // ═══ GETTING CRAZY — votes ═══
+  { id:123, cat:'gc', np:0, text:"Vote: who here is most likely to have a secret OnlyFans? They drink 3." },
+  { id:124, cat:'gc', np:0, text:"Vote: whose dating life would make the messiest documentary? They drink 3, then confirm or deny." },
+  { id:125, cat:'gc', np:0, text:"Vote: who flirts the most without realizing they're doing it? They give 3." },
+  { id:126, cat:'gc', np:0, text:"Vote: who is most likely to make out with someone tonight? They give 3." },
+  { id:127, cat:'gc', np:0, text:"Vote: who has the most chaotic ex? They drink 3. Story optional but encouraged." },
+  { id:128, cat:'gc', np:0, text:"Vote: who would win 'most dramatic breakup'? They drink 3." },
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════════
+const S = {
+  players: [],
+  cat: 'all',
+  len: 50,   // 0 = full deck
+  deck: [],
+  idx: 0,
+  custom: JSON.parse(localStorage.getItem('pp_custom') || '[]'),
+  nextId: +(localStorage.getItem('pp_nextid') || 1000),
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════════════
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pick(exclude = []) {
+  const pool = S.players.filter(p => !exclude.includes(p));
+  const src = pool.length ? pool : S.players;
+  return src[Math.floor(Math.random() * src.length)];
+}
+
+function fill(str, p1, p2) {
+  return str
+    .replace(/\{player\}/g, p1 || 'Player')
+    .replace(/\{player2\}/g, p2 || 'Someone');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SCREEN MANAGEMENT
+// ══════════════════════════════════════════════════════════════════════════
+const SCREENS = ['screen-setup', 'screen-game', 'screen-gameover', 'screen-editor'];
+
+function show(id) {
+  SCREENS.forEach(s => document.getElementById(s).classList.toggle('hidden', s !== id));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SETUP
+// ══════════════════════════════════════════════════════════════════════════
+function addPlayerRow(name = '') {
+  const list = document.getElementById('player-list');
+  if (list.children.length >= 8) return;
+  const row = document.createElement('div');
+  row.className = 'player-row';
+  const idx = list.children.length + 1;
+  row.innerHTML = `
+    <input class="form-input pp-player" type="text" placeholder="Player ${idx}"
+           maxlength="20" value="${name}" autocomplete="off">
+    <button type="button" class="btn btn-ghost btn-sm"
+      onclick="const l=document.getElementById('player-list');if(l.children.length>2)this.parentElement.remove()">✕</button>`;
+  list.appendChild(row);
+  if (!name) setTimeout(() => row.querySelector('input').focus(), 0);
+}
+
+function initSetup() {
+  addPlayerRow(); addPlayerRow(); addPlayerRow();
+
+  document.getElementById('add-player-btn').addEventListener('click', () => addPlayerRow());
+
+  document.querySelectorAll('.cat-btn:not(.len-btn)').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cat-btn:not(.len-btn)').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      S.cat = btn.dataset.cat;
+    });
+  });
+
+  document.querySelectorAll('.len-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.len-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      S.len = +btn.dataset.len;
+    });
+  });
+
+  document.getElementById('start-btn').addEventListener('click', startGame);
+  document.getElementById('editor-btn').addEventListener('click', () => {
+    renderEditor();
+    show('screen-editor');
+  });
+}
+
+function startGame() {
+  S.players = Array.from(document.querySelectorAll('.pp-player'))
+    .map(i => i.value.trim()).filter(Boolean);
+
+  if (S.players.length < 2) {
+    alert('Add at least 2 players to start!');
+    return;
+  }
+
+  buildDeck();
+
+  if (!S.deck.length) {
+    alert('No prompts found for the selected deck. Try "All Cards".');
+    return;
+  }
+
+  renderCard();
+  show('screen-game');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// GAME
+// ══════════════════════════════════════════════════════════════════════════
+function buildDeck() {
+  let pool = [...BUILTIN, ...S.custom];
+  if (S.cat !== 'all') pool = pool.filter(p => p.cat === S.cat);
+
+  // Deck length: random sample of the pool (0 = full deck)
+  let cards = shuffle(pool);
+  if (S.len && cards.length > S.len) cards = cards.slice(0, S.len);
+
+  // Escalation: when mixing categories, bias Getting Started toward the front
+  // and Getting Crazy toward the back (still shuffled, just tilted)
+  if (S.cat === 'all') {
+    cards = cards
+      .map(c => ({ c, k: Math.random() + (c.cat === 'gc' ? 0.45 : 0) }))
+      .sort((a, b) => a.k - b.k)
+      .map(x => x.c);
+  }
+
+  // Fair spotlight: lead player is always one of the least-picked, and never
+  // the same person twice in a row
+  const counts = Object.fromEntries(S.players.map(p => [p, 0]));
+  let lastLead = null;
+  function pickLead() {
+    let cand = S.players.filter(p => p !== lastLead);
+    if (!cand.length) cand = [...S.players];
+    const min = Math.min(...cand.map(p => counts[p]));
+    cand = cand.filter(p => counts[p] === min);
+    return cand[Math.floor(Math.random() * cand.length)];
+  }
+
+  const deck = cards.map(p => {
+    const p1 = pickLead();
+    const p2 = pick([p1]);
+    if (p.np >= 1) { counts[p1]++; lastLead = p1; }
+    return {
+      ...p,
+      t:   fill(p.text, p1, p2),
+      r:   p.reward  ? fill(p.reward,  p1, p2) : '',
+      pen: p.penalty ? fill(p.penalty, p1, p2) : '',
+      _p1: p1, _p2: p2,
+    };
+  });
+
+  // Rule cards: auto-insert their end-card 5–8 positions later
+  const inserts = [];
+  deck.forEach((c, i) => {
+    if (c.endText) {
+      const pos = Math.min(i + 5 + Math.floor(Math.random() * 4), deck.length);
+      inserts.push({ pos, card: { cat: c.cat, endCard: true, t: fill(c.endText, c._p1, c._p2), r: '', pen: '' } });
+    }
+  });
+  inserts.sort((a, b) => b.pos - a.pos).forEach(x => deck.splice(x.pos, 0, x.card));
+
+  S.deck = deck;
+  S.idx = 0;
+}
+
+function renderCard() {
+  if (S.idx >= S.deck.length) { show('screen-gameover'); return; }
+
+  const p = S.deck[S.idx];
+  const card = document.getElementById('gc-card');
+
+  card.className = `gc-card cat-${p.cat || 'gs'}`;
+  document.getElementById('gc-cat-label').textContent =
+    p.endCard ? '📢 Rule Update' : (p.cat === 'gc' ? 'Getting Crazy' : 'Getting Started');
+  document.getElementById('gc-counter').textContent = `${S.idx + 1} / ${S.deck.length}`;
+  document.getElementById('gc-text').textContent = p.t;
+
+  // Instant cards (everyone-who, duels, votes, rules) carry their outcome in the
+  // text itself — hide the Do it / Skip it boxes for those
+  const hasChoice = !!(p.r || p.pen);
+  document.querySelector('.gc-outcomes').style.display = hasChoice ? '' : 'none';
+  document.getElementById('gc-reward').textContent = p.r;
+  document.getElementById('gc-penalty').textContent = p.pen;
+  document.getElementById('gc-progress').style.width = `${(S.idx / S.deck.length) * 100}%`;
+
+  const body = document.getElementById('gc-body');
+  body.classList.remove('gc-slide-in');
+  void body.offsetWidth; // force reflow to restart animation
+  body.classList.add('gc-slide-in');
+}
+
+function initGame() {
+  document.getElementById('gc-card').addEventListener('click', () => {
+    S.idx++;
+    renderCard();
+  });
+
+  document.getElementById('gc-menu-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    if (confirm('Exit to setup? Current game progress will be lost.')) show('screen-setup');
+  });
+
+  document.getElementById('go-replay').addEventListener('click', () => {
+    buildDeck();
+    renderCard();
+    show('screen-game');
+  });
+  document.getElementById('go-setup').addEventListener('click', () => show('screen-setup'));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// EDITOR
+// ══════════════════════════════════════════════════════════════════════════
+function renderEditor() {
+  const list = document.getElementById('custom-list');
+  document.getElementById('custom-count').textContent = ` (${S.custom.length})`;
+
+  if (!S.custom.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.875rem;text-align:center;padding:16px 0;">No custom prompts yet. Add one above!</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  S.custom.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'custom-item';
+    div.innerHTML = `
+      <div class="custom-item-text">${p.text}</div>
+      <div class="custom-item-meta">
+        <span class="tag">${p.cat === 'gc' ? 'Getting Crazy' : 'Getting Started'}</span>
+        <span class="custom-item-reward">✅ ${p.reward}</span>
+        <span class="custom-item-penalty">❌ ${p.penalty}</span>
+      </div>
+      <div class="custom-item-actions">
+        <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:#e74c3c44"
+          onclick="deleteCustom(${i})">Delete</button>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function deleteCustom(idx) {
+  if (!confirm('Delete this prompt?')) return;
+  S.custom.splice(idx, 1);
+  localStorage.setItem('pp_custom', JSON.stringify(S.custom));
+  renderEditor();
+}
+
+function initEditor() {
+  document.getElementById('editor-back-btn').addEventListener('click', () => show('screen-setup'));
+
+  document.getElementById('add-prompt-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const text    = document.getElementById('ep-text').value.trim();
+    const reward  = document.getElementById('ep-reward').value.trim();
+    const penalty = document.getElementById('ep-penalty').value.trim();
+    const cat     = document.getElementById('ep-cat').value;
+    if (!text || !reward || !penalty) return;
+
+    S.custom.push({
+      id: S.nextId++,
+      cat, text, reward, penalty,
+      np: (text.match(/\{player/g) || []).length,
+    });
+    localStorage.setItem('pp_custom', JSON.stringify(S.custom));
+    localStorage.setItem('pp_nextid', String(S.nextId));
+
+    e.target.reset();
+    renderEditor();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  initSetup();
+  initGame();
+  initEditor();
+});
+</script>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

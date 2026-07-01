@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f0b429">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Card Games">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>Card Drinking Games</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .hero {
+      text-align: center;
+      padding: 60px 20px 20px;
+    }
+    .hero-suits {
+      font-size: 3rem;
+      margin-bottom: 16px;
+      letter-spacing: 12px;
+    }
+    .hero h1 {
+      font-size: 2.8rem;
+      font-weight: 900;
+      color: var(--gold);
+      letter-spacing: -1px;
+      margin-bottom: 10px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .disclaimer {
+      max-width: 700px;
+      margin: 40px auto 0;
+      background: rgba(231,76,60,0.08);
+      border: 1px solid rgba(231,76,60,0.25);
+      border-radius: 10px;
+      padding: 14px 18px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .tip-wrap {
+      text-align: center;
+      margin: 28px auto 0;
+    }
+    .tip-btns {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .tip-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .tip-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      padding: 11px 22px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .tip-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .tip-btn:active { transform: scale(0.97); }
+    .tip-btn.kofi { background: #ff5e5b; color: #fff; }
+    .tip-btn.btc  { background: #f7931a; color: #fff; }
+    .tip-qr {
+      margin-top: 16px;
+      display: none;
+    }
+    .tip-qr.visible { display: block; }
+    .tip-qr img {
+      width: 160px; height: 160px;
+      border-radius: 10px;
+      border: 3px solid #f7931a;
+      display: block;
+      margin: 0 auto 8px;
+    }
+    .tip-qr-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .tip-qr-addr {
+      font-size: 0.72rem;
+      color: #f7931a;
+      font-weight: 700;
+      text-align: center;
+      margin-top: 2px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="topbar">
+    <a class="topbar-brand" href="#">♠ Card <em>Games</em></a>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-suits">♠ ♥ ♦ ♣</div>
+    <h1>Card <span>Drinking</span> Games</h1>
+    <p>Pick a game, gather your crew, and shuffle up. Rules are built right in — no rulebook required.</p>
+  </div>
+
+  <div class="page" style="padding-top: 16px;">
+    <div class="game-grid">
+
+      <a class="game-card" href="kings.html">
+        <div class="game-card-icon">👑</div>
+        <div class="game-card-name">King's Cup</div>
+        <div class="game-card-desc">
+          Draw a card, follow the rule. Each card value has a unique action — waterfalls, categories, rhymes, and more. Every King drawn = make a house rule. The 4th King chugs a new beer.
+        </div>
+        <div class="game-card-meta">
+          <span class="tag players">3–10 players</span>
+          <span class="tag intensity">🔥 Classic</span>
+        </div>
+      </a>
+
+<a class="game-card" href="ftd.html">
+        <div class="game-card-icon">🎯</div>
+        <div class="game-card-name">F*** the Dealer</div>
+        <div class="game-card-desc">
+          Guess the rank of the top card. Right on the first try — dealer drinks 3. Wrong twice — you drink the difference. The dealer stays until 3 players in a row miss both guesses.
+        </div>
+        <div class="game-card-meta">
+          <span class="tag players">3–8 players</span>
+          <span class="tag intensity">💀 Heavy</span>
+        </div>
+      </a>
+
+      <a class="game-card" href="the-grid.html">
+        <div class="game-card-icon">🔲</div>
+        <div class="game-card-name">The Grid</div>
+        <div class="game-card-desc">
+          A 3×3 grid of face-up piles. On your turn, pick a pile and guess Higher, Lower, or Same as the next card. Wrong — the pile flips down and you drink. Empty the deck before all 9 piles go down to win. Ace is always high.
+        </div>
+        <div class="game-card-meta">
+          <span class="tag players">2–6 players</span>
+          <span class="tag intensity">🎲 Strategic</span>
+        </div>
+      </a>
+
+      <a class="game-card" href="party-prompts.html">
+        <div class="game-card-icon">🎭</div>
+        <div class="game-card-name">Party Prompts</div>
+        <div class="game-card-desc">
+          A Picolo-style prompt card game — truths, dares, and social chaos. Every single card has a reward for doing it and a penalty for skipping. No free passes. Supports custom prompts.
+        </div>
+        <div class="game-card-meta">
+          <span class="tag players">3–8 players</span>
+          <span class="tag intensity">🎭 Social</span>
+        </div>
+      </a>
+
+      <a class="game-card" href="ride-the-bus.html">
+        <div class="game-card-icon">🚌</div>
+        <div class="game-card-name">Ride the Bus</div>
+        <div class="game-card-desc">
+          Three phases: deal cards round by round with guessing questions, flip the pyramid to give (or take) drinks and pass cards, then the player holding the most cards rides the bus.
+        </div>
+        <div class="game-card-meta">
+          <span class="tag players">3–8 players</span>
+          <span class="tag intensity">💀 Heavy</span>
+        </div>
+      </a>
+
+    </div>
+
+    <div class="disclaimer">
+      🍻 Please drink responsibly. These games are intended for adults of legal drinking age. Know your limits.
+    </div>
+
+    <div class="tip-wrap">
+      <div class="tip-label">Enjoying the games? Buy me a drink 🍺</div>
+      <div class="tip-btns">
+        <a class="tip-btn kofi" href="https://ko-fi.com/jaldo" target="_blank" rel="noopener">
+          ☕ Ko-fi
+        </a>
+        <button class="tip-btn btc" onclick="toggleQR()">
+          ⚡ Bitcoin
+        </button>
+      </div>
+      <div class="tip-qr" id="tip-qr">
+        <img src="qr-lightning.png" alt="Lightning QR">
+        <div class="tip-qr-label">Scan with any Lightning wallet</div>
+        <div class="tip-qr-addr">salmoncobra1@primal.net</div>
+      </div>
+    </div>
+    <script>
+      function toggleQR() {
+        const qr = document.getElementById('tip-qr');
+        qr.classList.toggle('visible');
+      }
+    </script>
+  </div>
+
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>
