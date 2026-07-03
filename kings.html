@@ -96,45 +96,65 @@
       box-shadow: 0 0 0 3px var(--gold), 0 0 20px rgba(240,180,41,0.55) !important;
     }
 
-    /* ── Red Solo Cup ── */
-    .solo-cup {
+    /* ── Beer can (center) — Kings tuck under the tab ── */
+    .beer-can {
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%);
+      width: 78px; height: 120px;
       z-index: 20; pointer-events: none;
-      display: flex; flex-direction: column; align-items: center;
-      filter: drop-shadow(0 6px 18px rgba(0,0,0,0.75));
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6));
     }
-    .cup-rim {
-      width: 70px; height: 10px;
-      background: linear-gradient(180deg, #f24444 0%, #c21212 100%);
-      border-radius: 5px 5px 0 0;
+    .beer-can.cracked { animation: canShake 0.5s ease-in-out 3; }
+    @keyframes canShake {
+      0%,100% { transform: translate(-50%, -50%) rotate(0deg); }
+      20%     { transform: translate(-54%, -50%) rotate(-5deg); }
+      60%     { transform: translate(-46%, -50%) rotate(5deg); }
     }
-    .cup-body {
-      width: 70px; height: 92px;
-      background: linear-gradient(160deg, #e82a2a 0%, #bf1111 55%, #960a0a 100%);
-      clip-path: polygon(10% 0%, 90% 0%, 75% 100%, 25% 100%);
-      position: relative; overflow: hidden;
+    .can-body {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 112px;
+      border-radius: 11px / 16px;
+      background: linear-gradient(90deg, #7f868f 0%, #eaeef2 20%, #b9c2cc 50%, #eaeef2 80%, #7f868f 100%);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18);
+      overflow: hidden;
     }
-    .cup-body::before { /* horizontal ribs */
-      content: '';
-      position: absolute; inset: 0;
-      background: repeating-linear-gradient(
-        transparent, transparent 13px,
-        rgba(255,255,255,0.12) 13px, rgba(255,255,255,0.12) 15px
-      );
+    .can-label {
+      position: absolute; left: 0; right: 0; top: 34%; height: 40%;
+      background: linear-gradient(180deg, var(--gold), #c8901a);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.15), 0 -1px 0 rgba(0,0,0,0.15);
     }
-    .cup-body::after { /* highlight streak */
-      content: '';
-      position: absolute;
-      left: 16%; top: 6%; width: 9%; height: 82%;
-      background: linear-gradient(180deg, rgba(255,255,255,0.44), rgba(255,255,255,0.06));
+    .can-top {
+      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+      width: 66px; height: 12px; border-radius: 50%;
+      background: linear-gradient(180deg, #cdd4db, #969ea7);
+      z-index: 2;
+    }
+    .can-tab {
+      position: absolute; top: 8px; left: 50%;
+      width: 24px; height: 9px;
+      border: 2px solid #868e97; border-radius: 5px;
+      background: #c2cad2;
+      transform: translateX(-50%);
+      z-index: 5;
+      transition: transform 0.3s var(--ease, ease);
+    }
+    .beer-can.cracked .can-tab { transform: translateX(-50%) translateY(-7px) rotate(-32deg); }
+
+    /* Kings tucked under the tab, fanned out of the top */
+    .tucked-cards { position: absolute; top: 4px; left: 50%; width: 0; height: 0; z-index: 3; }
+    .tucked-king {
+      position: absolute; bottom: 0; left: 0; margin-left: -12px;
+      width: 24px; height: 33px;
+      background: #fff; border: 1px solid rgba(0,0,0,0.3);
       border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.55rem; font-weight: 800;
+      transform-origin: 50% 100%;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.45);
     }
-    .cup-base {
-      width: 40px; height: 7px;
-      background: linear-gradient(180deg, #8c0909, #620606);
-      border-radius: 0 0 5px 5px;
-    }
+    .tucked-king.red   { color: #c0392b; }
+    .tucked-king.black { color: #1a1a2e; }
 
     /* ── Result card ── */
     .rule-display {
@@ -194,14 +214,6 @@
       background: rgba(240,180,41,0.08);
     }
     .rule-sug-chip:active { transform: scale(0.96); }
-
-    /* ── King rule toggle (setup) ── */
-    .king-rule-btn { flex: 1; }
-    .king-rule-btn.active {
-      border: 1px solid var(--gold);
-      color: var(--gold);
-      background: rgba(240,180,41,0.12);
-    }
 
     /* ── Draw history ── */
     .draw-log {
@@ -282,14 +294,14 @@
 
 <div class="page">
   <div class="page-title">👑 King's Cup</div>
-  <div class="page-sub">Click any face-down card around the cup to flip it and follow the rule.</div>
+  <div class="page-sub">Flip cards around the beer can. Every King gets tucked under the tab — and sooner or later one of them cracks it.</div>
 
   <button class="rules-toggle" onclick="toggleRules(this)">
     📖 How to Play &amp; Card Rules <span class="arrow">▼</span>
   </button>
   <div class="rules-body" id="rules-body">
     <h3>Setup</h3>
-    <p>All 52 cards are spread face-down in a circle around the red cup. Players sit around the table and take turns clockwise.</p>
+    <p>All 52 cards are spread face-down in a circle around a beer can in the middle. Players sit around the table and take turns clockwise.</p>
 
     <h3>Taking a Turn</h3>
     <p>Click any face-down card in the circle to flip it and reveal its rule. Follow the rule, then pass to the next player.</p>
@@ -297,9 +309,9 @@
     <h3>Card Rules</h3>
     <div class="kings-rules-grid" id="rules-grid"></div>
 
-    <h3>Kings</h3>
-    <p>Every King drawn = the drawer makes a new house rule everyone must follow for the rest of the game. Anyone who breaks a rule drinks.</p>
-    <p id="king-rule-note">The player who draws the <strong>4th King</strong> must chug a full new beer.</p>
+    <h3>Kings &amp; the Can 🍺</h3>
+    <p>Every King drawn = the drawer makes a new house rule everyone must follow, <em>and</em> tucks that King under the tab of the can in the middle — just like real life.</p>
+    <p>Each King bends the tab a little more. You never know which King will pop it — but once the tab cracks, <strong>whoever drew that King chugs the middle drink</strong>. It could be the 2nd King… it could be the 4th.</p>
   </div>
 
   <!-- ── Setup ── -->
@@ -320,14 +332,7 @@
           <button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button>
         </div>
       </div>
-      <div class="form-group" style="margin-top:14px">
-        <label class="form-label">4th King Rule</label>
-        <div class="flex gap-8">
-          <button class="btn btn-surface king-rule-btn" id="kr-beer" onclick="setKingRule('beer')">🍺 Chug a new beer</button>
-          <button class="btn btn-surface king-rule-btn" id="kr-cup"  onclick="setKingRule('cup')">🥤 Drink the center cup</button>
-        </div>
-      </div>
-      <div class="flex gap-8">
+      <div class="flex gap-8" style="margin-top:14px">
         <button class="btn btn-ghost btn-sm" onclick="addPlayerRow()">+ Add Player</button>
         <button class="btn btn-gold btn-lg" onclick="startGame()">Deal the Cards →</button>
       </div>
@@ -408,12 +413,12 @@
   </div>
 </div>
 
-<!-- 4th King overlay -->
+<!-- Can-crack overlay -->
 <div class="king-overlay hidden" id="king-overlay">
   <div class="king-confetti" id="king-confetti"></div>
   <div class="king-overlay-card">
-    <div class="ko-icon">👑</div>
-    <div class="ko-title">4TH KING!</div>
+    <div class="ko-icon" id="ko-icon">💥</div>
+    <div class="ko-title" id="ko-title">THE CAN CRACKED!</div>
     <div class="ko-desc" id="ko-desc"></div>
     <button class="btn btn-gold btn-lg" onclick="dismissKingOverlay()">🍻 Done!</button>
   </div>
@@ -471,21 +476,14 @@ function useSuggestion(btn) {
   input.focus();
 }
 
-// ── 4th King rule mode ──
-let kingRuleMode = localStorage.getItem('kings-kingrule') || 'beer';
-
-function kingRuleText() {
-  return kingRuleMode === 'cup' ? 'drink the entire center cup' : 'chug a full new beer';
-}
-
-function setKingRule(mode) {
-  kingRuleMode = mode;
-  try { localStorage.setItem('kings-kingrule', mode); } catch (e) {}
-  document.getElementById('kr-beer').classList.toggle('active', mode === 'beer');
-  document.getElementById('kr-cup').classList.toggle('active', mode === 'cup');
-  document.getElementById('king-rule-note').innerHTML =
-    `The player who draws the <strong>4th King</strong> must ${kingRuleText()}.`;
-  buildRulesGrid();
+// ── Crack threshold: which King (2nd–4th) pops the tab ──
+// Hidden & weighted to feel like real life: never the 1st, usually the 3rd or 4th,
+// sometimes the 2nd. The 4th King always cracks it if it gets that far.
+function pickCrackThreshold() {
+  const r = Math.random();
+  if (r < 0.20) return 2;   // 20% — early pop
+  if (r < 0.55) return 3;   // 35%
+  return 4;                 // 45%
 }
 
 // ── State ──
@@ -500,6 +498,9 @@ let lastDrawnIdx  = -1;
 let cardFlipped   = false; // true after a flip, until Pass is clicked
 let questionMaster = null; // current Question Master (Q rule)
 let mates          = [];   // [[nameA, nameB], …] drinking-buddy pairs (8 rule)
+let crackThreshold = 4;    // hidden: which King number cracks the can (2–4)
+let tuckedKings    = [];   // King cards tucked under the tab, in draw order
+let canCracked     = false;
 
 // Circle dimensions (computed per viewport at startGame)
 let CIRCLE_SIZE   = 500;
@@ -510,7 +511,9 @@ let CARD_H        = 70;
 // ── Build rules reference ──
 function buildRulesGrid() {
   document.getElementById('rules-grid').innerHTML = Object.entries(KINGS_RULES).map(([v, r]) => {
-    const desc = v === 'K' ? `${r.desc} The player who draws the 4th King must ${kingRuleText()}.` : r.desc;
+    const desc = v === 'K'
+      ? `${r.desc} Then tuck this King under the middle can's tab. A random King cracks the can — that player chugs the middle drink.`
+      : r.desc;
     return `<div class="kings-rule-item">
        <span class="kings-rule-value">${v}</span>
        <span class="kings-rule-text"><span class="kings-rule-name">${r.name}</span>${desc}</span>
@@ -559,6 +562,7 @@ function startGame() {
   currentPlayer = 0; kingsDrawn = 0; houseRules = [];
   pendingKing = false; gameActive = true; lastDrawnIdx = -1; cardFlipped = false;
   questionMaster = null; mates = [];
+  crackThreshold = pickCrackThreshold(); tuckedKings = []; canCracked = false;
   drawLog = [];
   renderDrawLog();
   dismissKingOverlay();
@@ -595,11 +599,19 @@ function renderCircle() {
   const midSize = CARD_W < 38 ? '0.72rem' : CARD_W < 46 ? '0.92rem' : '1.15rem';
   const pad     = CARD_W < 38 ? '2px 3px' : '3px 4px';
 
-  // Cup HTML
-  let html = `<div class="solo-cup">
-    <div class="cup-rim"></div>
-    <div class="cup-body"></div>
-    <div class="cup-base"></div>
+  // Beer can HTML — Kings fanned under the tab
+  const n = tuckedKings.length;
+  const tuckHTML = tuckedKings.map((c, i) => {
+    const rot = (i - (n - 1) / 2) * 15; // fan the tucked kings ~15° apart
+    const red = c.suit === '♥' || c.suit === '♦';
+    return `<div class="tucked-king ${red ? 'red' : 'black'}" style="transform: rotate(${rot}deg);">${c.value}${c.suit}</div>`;
+  }).join('');
+
+  let html = `<div class="beer-can${canCracked ? ' cracked' : ''}">
+    <div class="tucked-cards">${tuckHTML}</div>
+    <div class="can-top"></div>
+    <div class="can-tab"></div>
+    <div class="can-body"><div class="can-label">🍺</div></div>
   </div>`;
 
   // Card slots
@@ -658,25 +670,32 @@ function flipCard(i) {
   document.getElementById('rule-name').textContent  = rule.name;
   document.getElementById('rule-desc').textContent  = rule.desc;
 
-  addDrawLog(card.value === 'K' ? 'king' : '', `${pName} drew the ${card.value}${card.suit} — ${rule.name}`);
+  if (card.value !== 'K') {
+    addDrawLog('', `${pName} drew the ${card.value}${card.suit} — ${rule.name}`);
+  }
 
   if (card.value === 'K') {
     kingsDrawn++;
+    tuckedKings.push(card);
     updateKingsDisplay();
 
-    if (kingsDrawn === 4) {
-      document.getElementById('rule-name').textContent = '🚨 4th King! 🚨';
-      document.getElementById('rule-desc').textContent = `${pName} drew the 4th King! Game over!`;
+    if (kingsDrawn >= crackThreshold) {
+      // 💥 The tab pops — this King cracks the can
+      canCracked = true;
+      renderCircle(); // show the final tucked King + cracked can
+      document.getElementById('rule-name').textContent = '💥 THE CAN CRACKED!';
+      document.getElementById('rule-desc').textContent = `${pName} popped the tab — chug the middle drink! 🍺`;
       document.getElementById('turn-sub').textContent  = '🍺 Game over!';
       gameActive = false;
-      addDrawLog('king', `🚨 ${pName} drew the 4th King — must ${kingRuleText()}!`);
-      showKingOverlay(pName);
+      addDrawLog('king', `💥 ${pName} tucked King #${kingsDrawn} — the can CRACKED! Chug the middle drink!`);
+      showCrackOverlay(pName);
       return;
     }
 
-    // Prompt for house rule
+    // Tab holds — tuck the King and make a house rule
+    addDrawLog('king', `🍺 ${pName} drew a King and tucked it under the tab (King #${kingsDrawn})`);
     pendingKing = true;
-    renderCircle(); // disables card clicks
+    renderCircle(); // show the tucked King + disable card clicks
     const rm = document.getElementById('rule-maker');
     rm.classList.remove('hidden');
     document.getElementById('rule-maker-title').textContent = `${pName}: Make a House Rule (King #${kingsDrawn})`;
@@ -698,13 +717,15 @@ function flipCard(i) {
   showPassButton();
 }
 
-// ── 4th King overlay ──
-function showKingOverlay(pName) {
+// ── Can-crack overlay ──
+function showCrackOverlay(pName) {
+  document.getElementById('ko-icon').textContent  = '💥';
+  document.getElementById('ko-title').textContent = 'THE CAN CRACKED!';
   document.getElementById('ko-desc').textContent =
-    `${pName} drew the 4th King and must ${kingRuleText()}!`;
+    `${pName} popped the tab on King #${kingsDrawn} — chug the middle drink! 🍺`;
   const confetti = document.getElementById('king-confetti');
-  const emojis = ['👑', '🍺', '🎉', '✨', '🃏'];
-  confetti.innerHTML = Array.from({ length: 26 }, () => {
+  const emojis = ['🍺', '💥', '🎉', '✨', '👑'];
+  confetti.innerHTML = Array.from({ length: 28 }, () => {
     const e = emojis[Math.floor(Math.random() * emojis.length)];
     const left = Math.random() * 100;
     const delay = Math.random() * 1.2;
@@ -827,7 +848,6 @@ function updateKingsDisplay() {
     const slot = document.getElementById(`ks-${i}`);
     slot.classList.add('filled');
     slot.textContent = '♔';
-    if (kingsDrawn === 4) slot.classList.add('fourth');
   }
 }
 
@@ -854,7 +874,7 @@ function resetGame() {
   document.getElementById('setup-panel').classList.remove('hidden');
 }
 
-setKingRule(kingRuleMode); // also builds the rules grid
+buildRulesGrid();
 restoreRoster();
 </script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
