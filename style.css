@@ -458,12 +458,14 @@ body {
 
 /* ─── INDEX GAME CARDS ─── */
 .game-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 20px;
   margin-top: 32px;
 }
 .game-card {
+  flex: 0 1 272px;   /* fixed width so a partial last row stays centered & equal-sized */
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0) 45%), var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 18px;
@@ -520,6 +522,7 @@ body {
   .card-table { padding: 14px; gap: 8px; }
   .card.xl { width: 100px; height: 140px; }
   .rank-btn { width: 44px; height: 44px; font-size: 0.9rem; }
+  .game-card { flex-basis: 100%; }
 }
 
 /* ─── UTILS ─── */
