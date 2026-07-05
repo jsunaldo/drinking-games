@@ -189,6 +189,53 @@
     .give-row.assigned { opacity: 0.55; }
     .give-row.assigned .give-row-btns { display: none; }
     .give-row-assigned-to { font-size: 0.8rem; color: var(--green); font-weight: 700; margin-top: 2px; }
+
+    /* ── Reference card(s) shown inside the question ── */
+    .q-ref-label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--muted); font-weight: 700; margin-bottom: 8px; text-align: center;
+    }
+    .q-reference {
+      display: flex; gap: 12px; justify-content: center; align-items: center;
+      margin-bottom: 18px; flex-wrap: wrap;
+    }
+
+    /* ── Big tappable choice buttons ── */
+    .choice-hint {
+      font-size: 0.75rem; color: var(--muted); text-align: center;
+      margin-bottom: 12px; font-weight: 600;
+    }
+    .choice-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+      gap: 12px;
+    }
+    .choice {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; padding: 18px 10px; min-height: 100px;
+      background: var(--surface); border: 2px solid var(--border);
+      border-radius: 14px; cursor: pointer;
+      transition: transform 0.18s var(--ease-spring, ease), border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    }
+    .choice:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(0,0,0,0.4); }
+    .choice:active { transform: scale(0.95); }
+    .choice:disabled { opacity: 0.32; cursor: not-allowed; transform: none; box-shadow: none; }
+    .choice-icon { font-size: 2.1rem; line-height: 1; font-weight: 800; letter-spacing: 2px; }
+    .choice-label { font-size: 0.9rem; font-weight: 800; color: #fff; letter-spacing: 0.6px; }
+    .choice.ch-red   .choice-icon { color: #ff5a5a; }
+    .choice.ch-red:hover   { border-color: #ff5a5a; background: rgba(231,76,60,0.12); }
+    .choice.ch-black .choice-icon { color: #d6deec; }
+    .choice.ch-black:hover { border-color: #aeb9cc; background: rgba(255,255,255,0.06); }
+    .choice.ch-green .choice-icon { color: var(--green); }
+    .choice.ch-green:hover { border-color: var(--green); background: rgba(46,204,113,0.12); }
+    .choice.ch-down  .choice-icon { color: var(--accent); }
+    .choice.ch-down:hover  { border-color: var(--accent); background: rgba(231,76,60,0.12); }
+    .choice.ch-gold  .choice-icon { color: var(--gold); }
+    .choice.ch-gold:hover  { border-color: var(--gold); background: rgba(240,180,41,0.12); }
+    .choice.ch-blue  .choice-icon { color: var(--blue); }
+    .choice.ch-blue:hover  { border-color: var(--blue); background: rgba(52,152,219,0.12); }
+
+    .mystery-hint { color: var(--muted); font-size: 0.9rem; text-align: center; }
   </style>
 </head>
 <body>
@@ -414,43 +461,88 @@ const QUESTION_NAMES = ['Red or Black', 'Higher or Lower', 'Inside or Outside', 
 // Ace is always high
 function r(card) { return card.value === 'A' ? 14 : card.rank; }
 
+// ── Rich choice buttons (boxed, colored icon + white label) ──
+const CHOICE_META = {
+  'Red ♥♦':     { label: 'RED',      icon: '♥ ♦', cls: 'ch-red'   },
+  'Black ♠♣':   { label: 'BLACK',    icon: '♠ ♣', cls: 'ch-black' },
+  'Higher ↑':   { label: 'HIGHER',   icon: '▲',   cls: 'ch-green' },
+  'Lower ↓':    { label: 'LOWER',    icon: '▼',   cls: 'ch-down'  },
+  'Same =':     { label: 'SAME',     icon: '=',   cls: 'ch-gold'  },
+  'Inside':     { label: 'INSIDE',   icon: '▶◀',  cls: 'ch-blue'  },
+  'Outside':    { label: 'OUTSIDE',  icon: '◀▶',  cls: 'ch-blue'  },
+  '♠ Spades':   { label: 'SPADES',   icon: '♠',   cls: 'ch-black' },
+  '♥ Hearts':   { label: 'HEARTS',   icon: '♥',   cls: 'ch-red'   },
+  '♦ Diamonds': { label: 'DIAMONDS', icon: '♦',   cls: 'ch-red'   },
+  '♣ Clubs':    { label: 'CLUBS',    icon: '♣',   cls: 'ch-black' },
+};
+
+function choiceButtonsHTML(values, fn) {
+  return values.map(v => {
+    const m = CHOICE_META[v] || { label: v, icon: '', cls: '' };
+    return `<button class="choice ${m.cls}" onclick="${fn}('${v}')">
+        <span class="choice-icon">${m.icon}</span>
+        <span class="choice-label">${m.label}</span>
+      </button>`;
+  }).join('');
+}
+
+function refCardsHTML(cards, label) {
+  if (!cards || !cards.length) return '';
+  return `<div class="q-ref-label">${label}</div>
+    <div class="q-reference">${cards.map(c => cardHTML(c, 'lg')).join('')}</div>`;
+}
+
+function questionBoxHTML(q, fn, gridId) {
+  return `${refCardsHTML(q.refCards, q.refLabel)}
+    <div class="question-text">${q.text}</div>
+    <div class="choice-hint">👇 Tap your guess</div>
+    <div class="choice-grid" id="${gridId}">${choiceButtonsHTML(q.buttons, fn)}</div>`;
+}
+
 function getQuestion(qi, p) {
   if (qi === 0) {
-    return { text: 'Red or Black?', buttons: ['Red ♥♦', 'Black ♠♣'] };
+    return {
+      text: 'Will your card be Red or Black?',
+      buttons: ['Red ♥♦', 'Black ♠♣'],
+      refCards: [], refLabel: ''
+    };
   } else if (qi === 1) {
     const first = p.hand[0];
     return {
-      text: `Higher or Lower than your ${first.value}${first.suit}?`,
-      buttons: ['Higher ↑', 'Lower ↓', 'Same =']
+      text: 'Will the next card be Higher or Lower?',
+      buttons: ['Higher ↑', 'Lower ↓', 'Same ='],
+      refCards: [first], refLabel: 'Higher or lower than…'
     };
   } else if (qi === 2) {
     const c1 = p.hand[0], c2 = p.hand[1];
     const lo = Math.min(r(c1), r(c2)), hi = Math.max(r(c1), r(c2));
-    const rangeStr = lo === hi
-      ? `same rank as your ${c1.value}`
-      : `between your ${rankLabel(lo)} and ${rankLabel(hi)}`;
     const buttons = lo === hi
       ? ['Outside', 'Same =']
       : ['Inside', 'Outside', 'Same ='];
-    return { text: `Inside or Outside? (${rangeStr})`, buttons };
+    const text = lo === hi
+      ? 'Same rank as one of these — or Outside?'
+      : 'Will it land Inside or Outside these two?';
+    return { text, buttons, refCards: [c1, c2], refLabel: 'Your two cards' };
   } else {
-    return { text: 'What suit is it?', buttons: ['♠ Spades', '♥ Hearts', '♦ Diamonds', '♣ Clubs'] };
+    return {
+      text: 'What suit will the next card be?',
+      buttons: ['♠ Spades', '♥ Hearts', '♦ Diamonds', '♣ Clubs'],
+      refCards: [], refLabel: ''
+    };
   }
 }
 
 function askQuestion() {
   const p = players[p1PlayerIdx];
   document.getElementById('p1-player-label').textContent =
-    `Round ${p1QuestionIdx + 1} of 4 — ${QUESTION_NAMES[p1QuestionIdx]}`;
+    `${p.name} · Round ${p1QuestionIdx + 1} of 4 — ${QUESTION_NAMES[p1QuestionIdx]}`;
   document.getElementById('p1-result').classList.add('hidden');
   document.getElementById('p1-next-area').classList.add('hidden');
-  document.getElementById('p1-card-area').innerHTML = `<div style="color:var(--muted); font-size:0.9rem;">Card will appear after you answer</div>`;
+  document.getElementById('p1-card-area').innerHTML =
+    `<div class="mystery-hint">🂠 The next card is face-down — make your guess!</div>`;
 
   const q = getQuestion(p1QuestionIdx, p);
-  document.getElementById('q-text').innerHTML = `<span style="color:var(--muted);font-size:0.95rem;font-weight:600;">${p.name}</span><br>${q.text}`;
-  document.getElementById('q-buttons').innerHTML = q.buttons.map(b =>
-    `<button class="btn btn-surface" onclick="answerQuestion('${b}')">${b}</button>`
-  ).join('');
+  document.getElementById('question-box').innerHTML = questionBoxHTML(q, 'answerQuestion', 'q-buttons');
 }
 
 function answerQuestion(answer) {
@@ -781,23 +873,18 @@ function askBusQuestion() {
   document.getElementById('bus-result').classList.add('hidden');
   document.getElementById('bus-next-area').classList.add('hidden');
 
-  let label, questionText, buttons;
+  let label, q;
   if (busStep === 0) {
     label = `Card 1 of ${busLength} — Red or Black?`;
-    questionText = 'Red or Black?';
-    buttons = ['Red ♥♦', 'Black ♠♣'];
+    q = { text: 'Will card 1 be Red or Black?', buttons: ['Red ♥♦', 'Black ♠♣'], refCards: [], refLabel: '' };
   } else {
     const prev = busCards[busStep - 1];
     label = `Card ${busStep + 1} of ${busLength} — Higher or Lower?`;
-    questionText = `Higher or Lower than ${prev.value}${prev.suit}?`;
-    buttons = ['Higher ↑', 'Lower ↓'];
+    q = { text: 'Will the next card be Higher or Lower?', buttons: ['Higher ↑', 'Lower ↓'], refCards: [prev], refLabel: 'Higher or lower than…' };
   }
 
   document.getElementById('bus-q-label').textContent = label;
-  document.getElementById('bus-q-text').textContent = questionText;
-  document.getElementById('bus-q-buttons').innerHTML = buttons.map(b =>
-    `<button class="btn btn-surface" onclick="answerBus('${b}')">${b}</button>`
-  ).join('');
+  document.getElementById('bus-question-box').innerHTML = questionBoxHTML(q, 'answerBus', 'bus-q-buttons');
 
   updateBusCardsDisplay();
 }
