@@ -539,6 +539,7 @@ function askQuestion() {
 
   const q = getQuestion(p1QuestionIdx, p);
   document.getElementById('question-box').innerHTML = questionBoxHTML(q, 'answerQuestion', 'q-buttons');
+  revealEl('question-box');
 }
 
 function answerQuestion(answer) {
@@ -600,6 +601,7 @@ function answerQuestion(answer) {
   renderProgress();
 
   document.getElementById('p1-next-area').classList.remove('hidden');
+  revealEl('p1-next-area');
   const nextBtn = document.getElementById('p1-next-btn');
 
   const isLastPlayer = p1PlayerIdx >= players.length - 1;
@@ -743,6 +745,7 @@ function flipPyramidCard() {
       const nextIsLast = (pyrCol + 1 >= pyramid[pyrRow].length) && (pyrRow >= pyramid.length - 1);
       document.getElementById('p2-flip-btn').disabled = false;
       document.getElementById('p2-flip-btn').textContent = nextIsLast ? 'Proceed to Ride the Bus →' : 'Next Card →';
+      revealEl('p2-flip-btn');
     } else {
       // GIVE row — build give assignments, one per matching player
       pyrGives = matches.map(p => {
@@ -752,6 +755,7 @@ function flipPyramidCard() {
 
       renderGiveUI(card, drinkVal);
       document.getElementById('p2-flip-btn').disabled = true;
+      revealEl('p2-result');
     }
   }
 }
@@ -882,6 +886,7 @@ function askBusQuestion() {
   document.getElementById('bus-question-box').innerHTML = questionBoxHTML(q, 'answerBus', 'bus-q-buttons');
 
   updateBusCardsDisplay();
+  revealEl('bus-question-box');
 }
 
 function answerBus(answer) {
@@ -921,6 +926,7 @@ function answerBus(answer) {
       document.getElementById('bus-result-title').textContent = `✅ Correct — give a drink!`;
       document.getElementById('bus-result-desc').textContent = `Card: ${card.value}${card.suit}. ${busLength - busStep} to go…`;
       document.getElementById('bus-next-area').classList.remove('hidden');
+      revealEl('bus-next-area');
     }
   } else {
     // Wrong — drink and restart from card 1
@@ -932,6 +938,7 @@ function answerBus(answer) {
     document.getElementById('bus-result-desc').textContent =
       `Card was ${card.value}${card.suit}. Back to card 1 — must get all ${busLength} correct in a row.`;
     document.getElementById('bus-next-area').classList.remove('hidden');
+    revealEl('bus-next-area');
     renderBusDots();
     updateBusCardsDisplay();
   }
@@ -944,6 +951,7 @@ function nextBusStep() {
 function showBusWin() {
   document.getElementById('bus-question-box').style.display = 'none';
   document.getElementById('bus-win').classList.remove('hidden');
+  revealEl('bus-win');
   document.getElementById('bus-win-desc').textContent =
     `${busRiders[busRiderIdx].name} got off the bus after ${busTotal} restart${busTotal !== 1 ? 's' : ''}!`;
   renderBusDots();

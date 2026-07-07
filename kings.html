@@ -771,6 +771,7 @@ function flipCard(i) {
     document.getElementById('rule-maker-title').textContent = `${pName}: Make a House Rule (King #${kingsDrawn})`;
     document.getElementById('rule-input').value = '';
     renderRuleSuggestions();
+    revealEl('rule-maker');
     setTimeout(() => document.getElementById('rule-input').focus(), 80);
     return;
   }
@@ -820,6 +821,7 @@ function showMatePicker() {
     .map((p, i) => i === currentPlayer ? '' :
       `<button class="btn btn-surface btn-sm" onclick="pickMate(${i})">${p.name}</button>`)
     .join('');
+  revealEl('mate-picker');
 }
 
 function pickMate(i) {
@@ -884,6 +886,7 @@ function showPassButton() {
   const btn = document.getElementById('next-turn-btn');
   btn.textContent = `Pass to ${nextName} →`;
   btn.classList.remove('hidden');
+  revealEl('next-turn-btn');
 }
 
 // ── Advance to next player ──
@@ -896,6 +899,7 @@ function advanceTurn() {
   document.getElementById('next-turn-btn').classList.add('hidden');
   updateTurnDisplay();
   renderCircle();
+  revealEl('circle-table');
 
   // All cards drawn?
   if (cardPositions.every(p => p.drawn)) {

@@ -157,6 +157,7 @@
       letter-spacing: 0.3px;
     }
     .pile-label.locked-label { color: var(--blue); }
+    .pile-label.wrong-label  { color: var(--accent); font-weight: 800; }
 
     /* Guess buttons */
     .guess-buttons {
@@ -499,10 +500,13 @@ function renderGrid() {
 
     const card = isFaceUp ? topCard(pile) : null;
     const cardCount = pile.cards.length;
-    const labelText = isLocked ? '⏳ resting' : (isFaceUp ? `${cardCount} card${cardCount !== 1 ? 's' : ''}` : '💀 flipped');
-    const labelClass = isLocked ? 'pile-label locked-label' : 'pile-label';
     const isDealing       = i === dealingPileIdx  && isFaceUp;
     const isWrongResult   = i === wrongResultIdx  && isFaceUp;
+    const labelText = isWrongResult ? '❌ wrong!'
+      : isLocked ? '⏳ resting'
+      : (isFaceUp ? `${cardCount} card${cardCount !== 1 ? 's' : ''}` : '💀 flipped');
+    const labelClass = isWrongResult ? 'pile-label wrong-label'
+      : isLocked ? 'pile-label locked-label' : 'pile-label';
     const isNewlyFlipped  = i === newlyFlippedIdx && !isFaceUp;
     const cardCls = isFaceUp ? (isDealing ? 'dealing' : '') : (isNewlyFlipped ? 'flip-in' : '');
 
@@ -573,6 +577,7 @@ function handlePileClick(i) {
   document.getElementById('guess-buttons').classList.remove('hidden');
   setInstruction(`<strong>${players[currentPlayer].name}</strong> chose Pile ${i + 1} (${topCard(piles[i]).value}${topCard(piles[i]).suit}) — guess Higher, Same, or Lower?`, 'highlight');
   renderGrid();
+  revealEl('guess-buttons');
 }
 
 function makeGuess(guess) {
@@ -640,7 +645,8 @@ function makeGuess(guess) {
 
     const wrongIdx = selectedPile;
     animating = true;
-    lastChosenPile = wrongIdx;
+    // NOTE: lastChosenPile is set at the END of the sequence — setting it now
+    // would paint the pile with the blue "resting" style mid-animation
     dealingPileIdx = wrongIdx;
     selectedPile = -1;
 
@@ -661,6 +667,7 @@ function makeGuess(guess) {
         // Step 4: mid-flip — swap to face-down card
         setTimeout(() => {
           piles[wrongIdx].faceUp = false;
+          lastChosenPile = wrongIdx;
           wrongResultIdx = -1;
           newlyFlippedIdx = wrongIdx;
           renderAll();
@@ -670,6 +677,7 @@ function makeGuess(guess) {
           if (checkEndConditions()) return;
           rb.classList.remove('hidden');
           document.getElementById('next-turn-btn').classList.remove('hidden');
+          revealEl('next-turn-btn');
         }, 220);
       }, 650);
     }, 480);
@@ -691,6 +699,7 @@ function makeGuess(guess) {
     if (checkEndConditions()) return;
     rb.classList.remove('hidden');
     document.getElementById('next-turn-btn').classList.remove('hidden');
+    revealEl('next-turn-btn');
   }, 460);
 }
 
@@ -701,6 +710,7 @@ function advanceTurn() {
   document.getElementById('next-turn-btn').classList.add('hidden');
   setInstruction(`<strong>${players[currentPlayer].name}</strong> — pick a pile.`);
   renderAll();
+  revealEl('instruction-bar');
 }
 
 function addLog(type, msg) {

@@ -52,6 +52,15 @@ function rankLabel(rank) {
   return map[rank] || String(rank);
 }
 
+// Scroll the current action element into view if it's off-screen.
+// block:'nearest' means NO scrolling happens when it's already visible.
+function revealEl(id) {
+  const el = document.getElementById(id);
+  if (el && el.scrollIntoView && !el.classList.contains('hidden')) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
 // ─── Shared setup-panel helpers (used by every game) ───
 function cleanName(s) {
   return s.replace(/[<>]/g, '').trim();

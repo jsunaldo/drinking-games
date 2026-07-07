@@ -408,6 +408,7 @@ function beginTurn() {
 
   setBoardInstruction('Click a rank to guess');
   renderCardBoard();
+  revealEl('card-board');
 }
 
 // ── Guessing ──
@@ -435,6 +436,7 @@ function onFirstGuess(rank) {
     showChugIfNeeded();
     setBoardInstruction('');
     document.getElementById('next-btn-area').classList.remove('hidden');
+    revealEl('next-btn-area');
   } else {
     // ❌ Wrong 1st guess — show hint, wait for 2nd (don't reveal card yet)
     const dir = ftdRank(currentCard.value) > ftdRank(rank) ? 'higher' : 'lower';
@@ -482,6 +484,7 @@ function onSecondGuess(rank) {
 
   showChugIfNeeded();
   document.getElementById('next-btn-area').classList.remove('hidden');
+  revealEl('next-btn-area');
 }
 
 // ── Advance ──
