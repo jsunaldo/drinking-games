@@ -52,11 +52,6 @@
       font-size: 1.3rem; transition: all 0.3s;
     }
     .king-slot.filled { border-color: var(--accent); background: rgba(231,76,60,0.1); }
-    .king-slot.fourth { border-color: var(--gold); background: rgba(240,180,41,0.15); animation: kpulse 1s infinite; }
-    @keyframes kpulse {
-      0%,100% { box-shadow: 0 0 0 0 rgba(240,180,41,0.4); }
-      50%      { box-shadow: 0 0 0 8px rgba(240,180,41,0); }
-    }
 
     /* ── Circle table ── */
     .circle-table-outer { display: flex; justify-content: center; margin: 0 0 18px; }
@@ -569,7 +564,7 @@ function startGame() {
 
   for (let i = 0; i < 4; i++) {
     const s = document.getElementById(`ks-${i}`);
-    s.classList.remove('filled', 'fourth');
+    s.classList.remove('filled');
     s.textContent = '♛';
   }
 

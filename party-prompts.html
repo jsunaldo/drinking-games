@@ -644,12 +644,13 @@ function show(id) {
 function addPlayerRow(name = '') {
   const list = document.getElementById('player-list');
   if (list.children.length >= 8) return;
+  const clean = String(name).replace(/[<>"]/g, '');
   const row = document.createElement('div');
   row.className = 'player-row';
   const idx = list.children.length + 1;
   row.innerHTML = `
     <input class="form-input pp-player" type="text" placeholder="Player ${idx}"
-           maxlength="20" value="${name}" autocomplete="off">
+           maxlength="20" value="${clean}" autocomplete="off">
     <button type="button" class="btn btn-ghost btn-sm"
       onclick="const l=document.getElementById('player-list');if(l.children.length>2)this.parentElement.remove()">✕</button>`;
   list.appendChild(row);
@@ -657,7 +658,14 @@ function addPlayerRow(name = '') {
 }
 
 function initSetup() {
-  addPlayerRow(); addPlayerRow(); addPlayerRow();
+  // Restore the roster shared with the other games (kings, ftd, grid, bus)
+  let roster = null;
+  try { roster = JSON.parse(localStorage.getItem('cardgames-roster')); } catch (e) {}
+  if (Array.isArray(roster) && roster.length >= 2) {
+    roster.slice(0, 8).forEach(n => addPlayerRow(n));
+  } else {
+    addPlayerRow(); addPlayerRow(); addPlayerRow();
+  }
 
   document.getElementById('add-player-btn').addEventListener('click', () => addPlayerRow());
 
@@ -692,6 +700,9 @@ function startGame() {
     alert('Add at least 2 players to start!');
     return;
   }
+
+  // Save to the roster shared with the other games
+  try { localStorage.setItem('cardgames-roster', JSON.stringify(S.players)); } catch (e) {}
 
   buildDeck();
 

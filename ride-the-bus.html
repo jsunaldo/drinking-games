@@ -407,8 +407,6 @@ let phase = 1;
 // Phase 1
 let p1PlayerIdx = 0;
 let p1QuestionIdx = 0; // 0-3
-let p1PendingCard = null;
-let p1AwaitingReveal = false;
 
 // Phase 2
 let pyramid = []; // pyramid[row] = [{card, flipped}], row 0 = bottom (5 cards)
@@ -438,8 +436,6 @@ function startGame() {
   phase = 1;
   p1PlayerIdx = 0;
   p1QuestionIdx = 0;
-  p1PendingCard = null;
-  p1AwaitingReveal = false;
 
   document.getElementById('setup-panel').classList.add('hidden');
   document.getElementById('game-area').classList.remove('hidden');
@@ -551,7 +547,6 @@ function answerQuestion(answer) {
 
   const p = players[p1PlayerIdx];
   const card = deck.pop();
-  p1PendingCard = card;
 
   document.getElementById('p1-card-area').innerHTML = cardHTML(card, 'lg flipped-reveal');
 
