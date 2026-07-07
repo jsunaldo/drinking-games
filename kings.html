@@ -91,65 +91,109 @@
       box-shadow: 0 0 0 3px var(--gold), 0 0 20px rgba(240,180,41,0.55) !important;
     }
 
-    /* ── Beer can (center) — Kings tuck under the tab ── */
+    /* ── Beer can (side view) — Kings wedge under the tab, which bends more each time ── */
     .beer-can {
       position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 78px; height: 120px;
+      transform: translate(-50%, -46%);
+      width: 96px; height: 132px;
       z-index: 20; pointer-events: none;
       filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6));
     }
-    .beer-can.cracked { animation: canShake 0.5s ease-in-out 3; }
+    .beer-can.wobble { animation: canWobble 0.55s ease-in-out; }
+    @keyframes canWobble {
+      0%,100% { transform: translate(-50%, -46%) rotate(0); }
+      30%     { transform: translate(-51%, -46%) rotate(-2.5deg); }
+      65%     { transform: translate(-49%, -46%) rotate(2deg); }
+    }
+    .beer-can.cracked { animation: canShake 0.5s ease-in-out 2; }
     @keyframes canShake {
-      0%,100% { transform: translate(-50%, -50%) rotate(0deg); }
-      20%     { transform: translate(-54%, -50%) rotate(-5deg); }
-      60%     { transform: translate(-46%, -50%) rotate(5deg); }
+      0%,100% { transform: translate(-50%, -46%) rotate(0deg); }
+      20%     { transform: translate(-53%, -46%) rotate(-4deg); }
+      60%     { transform: translate(-47%, -46%) rotate(4deg); }
     }
     .can-body {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 112px;
-      border-radius: 11px / 16px;
-      background: linear-gradient(90deg, #7f868f 0%, #eaeef2 20%, #b9c2cc 50%, #eaeef2 80%, #7f868f 100%);
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18);
+      position: absolute; top: 16px; left: 9px; right: 9px; bottom: 0;
+      border-radius: 9px 9px 11px 11px;
+      background: linear-gradient(90deg, #6e757e 0%, #e9edf2 20%, #b7c0cb 50%, #e9edf2 80%, #6e757e 100%);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);
       overflow: hidden;
     }
     .can-label {
-      position: absolute; left: 0; right: 0; top: 34%; height: 40%;
+      position: absolute; left: 0; right: 0; top: 32%; height: 42%;
       background: linear-gradient(180deg, var(--gold), #c8901a);
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.4rem;
+      font-size: 1.5rem;
       box-shadow: 0 1px 0 rgba(0,0,0,0.15), 0 -1px 0 rgba(0,0,0,0.15);
     }
-    .can-top {
-      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
-      width: 66px; height: 12px; border-radius: 50%;
-      background: linear-gradient(180deg, #cdd4db, #969ea7);
-      z-index: 2;
+    /* Top of the can seen at an angle (ellipse) */
+    .can-top-face {
+      position: absolute; top: 8px; left: 12px; right: 12px; height: 17px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at 50% 35%, #dfe5eb 0%, #a7b0ba 70%, #7d858e 100%);
+      border: 1px solid #656d76;
+      z-index: 4;
     }
+    /* The pull-tab — bends up a little more with every tucked King (inline transform) */
     .can-tab {
-      position: absolute; top: 8px; left: 50%;
-      width: 24px; height: 9px;
-      border: 2px solid #868e97; border-radius: 5px;
-      background: #c2cad2;
-      transform: translateX(-50%);
-      z-index: 5;
-      transition: transform 0.3s var(--ease, ease);
+      position: absolute; top: 11px; left: 50%; margin-left: -12px;
+      width: 24px; height: 10px;
+      border: 2px solid #7d858e; border-radius: 5px;
+      background: #ccd3da;
+      transform-origin: 15% 85%;
+      z-index: 6;
+      transition: transform 0.45s var(--ease-spring, ease);
     }
-    .beer-can.cracked .can-tab { transform: translateX(-50%) translateY(-7px) rotate(-32deg); }
+    .beer-can.cracked .can-tab { transform: rotate(-75deg) translate(-2px, -5px); }
 
-    /* Kings tucked under the tab, fanned out of the top */
-    .tucked-cards { position: absolute; top: 4px; left: 50%; width: 0; height: 0; z-index: 3; }
+    /* Kings wedged under the tab, fanning out of the top */
+    .tucked-cards { position: absolute; top: 14px; left: 50%; width: 0; height: 0; z-index: 3; }
+    .tk-rot { position: absolute; bottom: 0; left: 0; transform-origin: 50% 100%; }
     .tucked-king {
-      position: absolute; bottom: 0; left: 0; margin-left: -12px;
-      width: 24px; height: 33px;
-      background: #fff; border: 1px solid rgba(0,0,0,0.3);
-      border-radius: 3px;
+      width: 26px; height: 36px; margin-left: -13px; margin-bottom: -6px;
+      background: #fff; border: 1px solid rgba(0,0,0,0.3); border-radius: 3px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.55rem; font-weight: 800;
-      transform-origin: 50% 100%;
+      font-size: 0.6rem; font-weight: 800;
       box-shadow: 0 2px 5px rgba(0,0,0,0.45);
     }
     .tucked-king.red   { color: #c0392b; }
     .tucked-king.black { color: #1a1a2e; }
+    .tucked-king.just-tucked { animation: tuckIn 0.55s var(--ease-spring, ease); }
+    @keyframes tuckIn {
+      0%   { transform: translateY(-48px); opacity: 0; }
+      55%  { transform: translateY(5px);   opacity: 1; }
+      100% { transform: translateY(0); }
+    }
+    /* Crack: cards eject along their fan directions */
+    .beer-can.cracked .tucked-king { animation: cardEject 0.8s ease-out forwards; }
+    @keyframes cardEject {
+      0%   { transform: translateY(0);     opacity: 1; }
+      100% { transform: translateY(-60px); opacity: 0; }
+    }
+    /* Crack: foam spray burst */
+    .can-spray { position: absolute; top: 6px; left: 50%; z-index: 7; }
+    .can-spray span {
+      position: absolute; width: 6px; height: 6px; border-radius: 50%;
+      background: #fdf6e3; opacity: 0;
+    }
+    .beer-can.cracked .can-spray span { animation: sprayBurst 0.9s ease-out forwards; }
+    @keyframes sprayBurst {
+      0%   { transform: translate(0,0) scale(0.6);              opacity: 0.95; }
+      100% { transform: translate(var(--dx), var(--dy)) scale(1.3); opacity: 0; }
+    }
+    /* Crack: PSSSHT! */
+    .can-psssht {
+      position: absolute; top: -26px; left: 50%; transform: translateX(-50%);
+      font-size: 1rem; font-weight: 900; color: var(--gold);
+      letter-spacing: 1px; opacity: 0; white-space: nowrap;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      z-index: 8;
+    }
+    .beer-can.cracked .can-psssht { animation: pssshtPop 1.2s ease-out forwards; }
+    @keyframes pssshtPop {
+      0%   { opacity: 0;   transform: translateX(-50%) scale(0.4); }
+      25%  { opacity: 1;   transform: translateX(-50%) scale(1.3); }
+      100% { opacity: 0.9; transform: translateX(-50%) scale(1) translateY(-8px); }
+    }
 
     /* ── Result card ── */
     .rule-display {
@@ -496,6 +540,8 @@ let mates          = [];   // [[nameA, nameB], …] drinking-buddy pairs (8 rule
 let crackThreshold = 4;    // hidden: which King number cracks the can (2–4)
 let tuckedKings    = [];   // King cards tucked under the tab, in draw order
 let canCracked     = false;
+let justTucked     = false; // animate the newest tucked King on next render
+let crackTimer     = null;  // pending crack-sequence timeout
 
 // Circle dimensions (computed per viewport at startGame)
 let CIRCLE_SIZE   = 500;
@@ -558,6 +604,8 @@ function startGame() {
   pendingKing = false; gameActive = true; lastDrawnIdx = -1; cardFlipped = false;
   questionMaster = null; mates = [];
   crackThreshold = pickCrackThreshold(); tuckedKings = []; canCracked = false;
+  justTucked = false;
+  clearTimeout(crackTimer);
   drawLog = [];
   renderDrawLog();
   dismissKingOverlay();
@@ -594,18 +642,33 @@ function renderCircle() {
   const midSize = CARD_W < 38 ? '0.72rem' : CARD_W < 46 ? '0.92rem' : '1.15rem';
   const pad     = CARD_W < 38 ? '2px 3px' : '3px 4px';
 
-  // Beer can HTML — Kings fanned under the tab
+  // Beer can HTML — side view, Kings fanned under the tab
   const n = tuckedKings.length;
   const tuckHTML = tuckedKings.map((c, i) => {
-    const rot = (i - (n - 1) / 2) * 15; // fan the tucked kings ~15° apart
+    const rot = (i - (n - 1) / 2) * 16; // fan the tucked kings ~16° apart
     const red = c.suit === '♥' || c.suit === '♦';
-    return `<div class="tucked-king ${red ? 'red' : 'black'}" style="transform: rotate(${rot}deg);">${c.value}${c.suit}</div>`;
+    const just = (justTucked && i === n - 1) ? ' just-tucked' : '';
+    return `<div class="tk-rot" style="transform: rotate(${rot}deg);">
+      <div class="tucked-king ${red ? 'red' : 'black'}${just}">${c.value}${c.suit}</div>
+    </div>`;
   }).join('');
 
-  let html = `<div class="beer-can${canCracked ? ' cracked' : ''}">
+  // Tab bends further with each tucked King; on crack the CSS snap takes over
+  const tabBend = canCracked ? '' : `style="transform: rotate(-${4 + 7 * n}deg);"`;
+  const crackFX = canCracked
+    ? `<div class="can-spray">${Array.from({ length: 12 }, () => {
+        const dx = (Math.random() * 68 - 34).toFixed(0);
+        const dy = (-28 - Math.random() * 44).toFixed(0);
+        const delay = (Math.random() * 0.25).toFixed(2);
+        return `<span style="--dx:${dx}px; --dy:${dy}px; animation-delay:${delay}s;"></span>`;
+      }).join('')}</div><div class="can-psssht">PSSSHT!</div>`
+    : '';
+
+  let html = `<div class="beer-can${canCracked ? ' cracked' : ''}${justTucked && !canCracked ? ' wobble' : ''}">
+    ${crackFX}
     <div class="tucked-cards">${tuckHTML}</div>
-    <div class="can-top"></div>
-    <div class="can-tab"></div>
+    <div class="can-top-face"></div>
+    <div class="can-tab" ${tabBend}></div>
     <div class="can-body"><div class="can-label">🍺</div></div>
   </div>`;
 
@@ -675,22 +738,34 @@ function flipCard(i) {
     updateKingsDisplay();
 
     if (kingsDrawn >= crackThreshold) {
-      // 💥 The tab pops — this King cracks the can
-      canCracked = true;
-      renderCircle(); // show the final tucked King + cracked can
-      document.getElementById('rule-name').textContent = '💥 THE CAN CRACKED!';
-      document.getElementById('rule-desc').textContent = `${pName} popped the tab — chug the middle drink! 🍺`;
-      document.getElementById('turn-sub').textContent  = '🍺 Game over!';
+      // 💥 This King cracks the can — play the sequence: tuck → suspense → crack → overlay
       gameActive = false;
+      justTucked = true;
+      renderCircle(); // final King visibly slides under the tab
+      justTucked = false;
+      document.getElementById('rule-name').textContent = `👑 King #${kingsDrawn} slides under the tab…`;
+      document.getElementById('rule-desc').textContent = "The tab is bending…";
       addDrawLog('king', `💥 ${pName} tucked King #${kingsDrawn} — the can CRACKED! Chug the middle drink!`);
-      showCrackOverlay(pName);
+
+      crackTimer = setTimeout(() => {
+        canCracked = true;
+        renderCircle(); // tab snaps, cards eject, spray + PSSSHT
+        document.getElementById('rule-name').textContent = '💥 THE CAN CRACKED!';
+        document.getElementById('rule-desc').textContent = `${pName} popped the tab — chug the middle drink! 🍺`;
+        document.getElementById('turn-sub').textContent  = '🍺 Game over!';
+        crackTimer = setTimeout(() => showCrackOverlay(pName), 1500);
+      }, 850);
       return;
     }
 
     // Tab holds — tuck the King and make a house rule
     addDrawLog('king', `🍺 ${pName} drew a King and tucked it under the tab (King #${kingsDrawn})`);
     pendingKing = true;
+    justTucked = true;
     renderCircle(); // show the tucked King + disable card clicks
+    justTucked = false;
+    document.getElementById('turn-sub').textContent =
+      `😅 The tab held! ${kingsDrawn} King${kingsDrawn > 1 ? 's' : ''} tucked…`;
     const rm = document.getElementById('rule-maker');
     rm.classList.remove('hidden');
     document.getElementById('rule-maker-title').textContent = `${pName}: Make a House Rule (King #${kingsDrawn})`;
@@ -865,6 +940,7 @@ function updateBanners() {
 
 function resetGame() {
   gameActive = false;
+  clearTimeout(crackTimer);
   document.getElementById('game-area').classList.add('hidden');
   document.getElementById('setup-panel').classList.remove('hidden');
 }
