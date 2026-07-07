@@ -190,6 +190,35 @@
     .give-row.assigned .give-row-btns { display: none; }
     .give-row-assigned-to { font-size: 0.8rem; color: var(--green); font-weight: 700; margin-top: 2px; }
 
+    /* ── Phase 2 sticky action dock — result + flip button never leave the screen ── */
+    .p2-dock {
+      position: sticky;
+      bottom: 10px;
+      z-index: 60;
+      margin-top: 16px;
+      background: rgba(19,31,48,0.92);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 -4px 28px rgba(0,0,0,0.5);
+    }
+    .p2-dock .notif { max-height: 36vh; overflow-y: auto; margin-bottom: 10px; }
+    .p2-dock-row { display: flex; gap: 12px; align-items: center; }
+    .p2-flip-view { flex-shrink: 0; min-width: 54px; display: flex; justify-content: center; }
+
+    /* Compact pyramid on phones so it fits above the dock */
+    @media (max-width: 650px) {
+      .pyramid-wrap { padding: 8px 0; }
+      .pyr-row { gap: 5px; margin-bottom: 5px; }
+      .pyr-row-wrap { margin-bottom: 6px; }
+      .pyramid-wrap .card.sm { width: 42px; height: 59px; padding: 3px 4px; }
+      .pyramid-wrap .card.sm .cv { font-size: 0.6rem; }
+      .pyramid-wrap .card.sm .cs { font-size: 0.5rem; }
+      .pyramid-wrap .card.sm .card-mid { font-size: 0.85rem; }
+    }
+
     /* ── Reference card(s) shown inside the question ── */
     .q-ref-label {
       font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px;
@@ -344,12 +373,17 @@
           <div class="card-table" style="min-height:240px; flex-direction:column;">
             <div class="pyramid-wrap" id="pyramid-wrap"></div>
           </div>
-          <div class="notif mt-16 hidden" id="p2-result">
-            <div class="notif-title" id="p2-result-title"></div>
-            <div id="p2-result-desc"></div>
-          </div>
-          <div class="mt-16">
-            <button class="btn btn-gold btn-lg w-full" id="p2-flip-btn" onclick="flipPyramidCard()">Flip Next Card</button>
+
+          <!-- Sticky dock: flipped card + result + flip button always on screen -->
+          <div class="p2-dock">
+            <div class="notif hidden" id="p2-result" style="margin-bottom:10px;">
+              <div class="notif-title" id="p2-result-title"></div>
+              <div id="p2-result-desc"></div>
+            </div>
+            <div class="p2-dock-row">
+              <div class="p2-flip-view" id="p2-flip-view"></div>
+              <button class="btn btn-gold btn-lg" id="p2-flip-btn" style="flex:1;" onclick="flipPyramidCard()">Flip Next Card</button>
+            </div>
           </div>
         </div>
         <div>
@@ -662,6 +696,8 @@ function beginPhase2() {
   renderPyramid();
   renderP2Players();
   document.getElementById('p2-result').classList.add('hidden');
+  document.getElementById('p2-flip-view').innerHTML = cardHTML(null, 'sm');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function renderPyramid() {
@@ -714,6 +750,8 @@ function flipPyramidCard() {
 
   renderPyramid();
   renderP2Players();
+  // Show the drawn card in the sticky dock, right next to the button
+  document.getElementById('p2-flip-view').innerHTML = cardHTML(card, 'sm flipped-reveal');
 
   if (matches.length === 0) {
     // No match — auto-draw another card on top after a short pause
@@ -745,7 +783,6 @@ function flipPyramidCard() {
       const nextIsLast = (pyrCol + 1 >= pyramid[pyrRow].length) && (pyrRow >= pyramid.length - 1);
       document.getElementById('p2-flip-btn').disabled = false;
       document.getElementById('p2-flip-btn').textContent = nextIsLast ? 'Proceed to Ride the Bus →' : 'Next Card →';
-      revealEl('p2-flip-btn');
     } else {
       // GIVE row — build give assignments, one per matching player
       pyrGives = matches.map(p => {
@@ -755,7 +792,6 @@ function flipPyramidCard() {
 
       renderGiveUI(card, drinkVal);
       document.getElementById('p2-flip-btn').disabled = true;
-      revealEl('p2-result');
     }
   }
 }
@@ -838,6 +874,7 @@ function beginPhase3() {
   setPhaseStep(3);
   document.getElementById('phase2').classList.add('hidden');
   document.getElementById('phase3').classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
   // Find who rides: most cards, tiebreak by most of a single suit
   const maxCards = Math.max(...players.map(p => p.hand.length));
