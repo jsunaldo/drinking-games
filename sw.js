@@ -1,4 +1,4 @@
-const CACHE_NAME = 'card-games-v7';
+const CACHE_NAME = 'card-games-v8';
 const CACHE_URLS = [
   './',
   './index.html',
@@ -10,9 +10,9 @@ const CACHE_URLS = [
   './deck.js',
   './style.css',
   './manifest.json',
-  './icon-180.png',
-  './icon-192.png',
-  './icon-512.png',
+  './icon-beer-180.png',
+  './icon-beer-192.png',
+  './icon-beer-512.png',
   './qr-lightning.png'
 ];
 
