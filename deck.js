@@ -47,11 +47,6 @@ function cardHTML(card, extra = '') {
     </div>`;
 }
 
-function rankLabel(rank) {
-  const map = { 1: 'Ace', 11: 'Jack', 12: 'Queen', 13: 'King', 14: 'Ace' };
-  return map[rank] || String(rank);
-}
-
 // Scroll the current action element into view if it's off-screen.
 // block:'nearest' means NO scrolling happens when it's already visible.
 function revealEl(id) {

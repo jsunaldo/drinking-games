@@ -439,6 +439,7 @@ let dealingPileIdx = -1;
 let wrongResultIdx = -1;
 let newlyFlippedIdx = -1;
 let animating = false;
+let gameEpoch = 0; // bumped on new/reset game so orphaned animation timers no-op
 
 // ─── Setup ───
 function startGame() {
@@ -461,6 +462,7 @@ function startGame() {
   wrongResultIdx = -1;
   newlyFlippedIdx = -1;
   animating = false;
+  gameEpoch++;
 
   document.getElementById('setup-panel').classList.add('hidden');
   document.getElementById('game-area').classList.remove('hidden');
@@ -601,6 +603,7 @@ function makeGuess(guess) {
   const rb = document.getElementById('result-box');
   const rt = document.getElementById('result-title');
   const rd = document.getElementById('result-desc');
+  const ep = gameEpoch; // timers below no-op if a new game starts mid-animation
 
   if (correct) {
     if (guess === 'same') {
@@ -620,6 +623,7 @@ function makeGuess(guess) {
         renderAll();
         dealingPileIdx = -1;
         setTimeout(() => {
+          if (ep !== gameEpoch) return;
           animating = false;
           setInstruction('✅ Same! Now click a face-down pile to unflip it.', 'unflip-mode');
           renderAll();
@@ -657,16 +661,19 @@ function makeGuess(guess) {
 
     // Step 2: show red X after card has landed
     setTimeout(() => {
+      if (ep !== gameEpoch) return;
       wrongResultIdx = wrongIdx;
       renderGrid();
 
       // Step 3: flip pile face-down
       setTimeout(() => {
+        if (ep !== gameEpoch) return;
         const wrapper = document.querySelectorAll('#pile-grid .pile-wrapper')[wrongIdx];
         if (wrapper) wrapper.classList.add('flipping');
 
         // Step 4: mid-flip — swap to face-down card
         setTimeout(() => {
+          if (ep !== gameEpoch) return;
           piles[wrongIdx].faceUp = false;
           lastChosenPile = wrongIdx;
           wrongResultIdx = -1;
@@ -694,6 +701,7 @@ function makeGuess(guess) {
   renderAll();
   dealingPileIdx = -1;
   setTimeout(() => {
+    if (ep !== gameEpoch) return;
     lastChosenPile = dealtPileIdx;
     animating = false;
     renderAll();
@@ -757,6 +765,8 @@ function endGame(result) {
 }
 
 function resetGame() {
+  gameEpoch++; // orphan any in-flight animation timers from this game
+  gameActive = false;
   document.getElementById('end-screen').classList.add('hidden');
   document.getElementById('setup-panel').classList.remove('hidden');
   document.getElementById('game-area').classList.add('hidden');

@@ -230,7 +230,7 @@
       <div class="stat-box"><div class="stat-val" id="stat-streak">0/3</div><div class="stat-lbl">Streak</div></div>
     </div>
 
-    <div class="streak-bar" id="streak-bar">
+    <div class="streak-bar">
       <div class="streak-dot" id="sd-0"></div>
       <div class="streak-dot" id="sd-1"></div>
       <div class="streak-dot" id="sd-2"></div>
@@ -449,6 +449,7 @@ function onFirstGuess(rank) {
     const hintMode = dir === 'higher' ? 'hint-higher' : 'hint-lower';
     setBoardInstruction(hintText, hintMode);
     addLog('wrong', `${players[guesserIdx].name} guessed ${rank} — wrong. Hint: ${dir.toUpperCase()}`);
+    showChugIfNeeded(); // banner appears the moment the last card is drawn, on either path
   }
 }
 

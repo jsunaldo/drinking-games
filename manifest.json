@@ -1,7 +1,7 @@
 {
   "name": "Card Drinking Games",
   "short_name": "Card Games",
-  "description": "King's Cup, F*** the Dealer, The Grid, Ride the Bus",
+  "description": "King's Cup, F*** the Dealer, The Grid, Party Prompts, Ride the Bus",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",

@@ -697,6 +697,15 @@ function startGame() {
   S.players = Array.from(document.querySelectorAll('.pp-player'))
     .map(i => i.value.trim()).filter(Boolean);
 
+  // Players are tracked by name string — make duplicates distinct ("Alex", "Alex 2")
+  // so pairing and fair-picking treat them as separate people
+  const seen = {};
+  S.players = S.players.map(n => {
+    if (!seen[n]) { seen[n] = 1; return n; }
+    seen[n]++;
+    return `${n} ${seen[n]}`;
+  });
+
   if (S.players.length < 2) {
     alert('Add at least 2 players to start!');
     return;
@@ -765,7 +774,8 @@ function buildDeck() {
   const inserts = [];
   deck.forEach((c, i) => {
     if (c.endText) {
-      const pos = Math.min(i + 5 + Math.floor(Math.random() * 4), deck.length);
+      const pos = i + 5 + Math.floor(Math.random() * 4);
+      if (pos >= deck.length) return; // rule drawn near the end simply lasts until the game ends
       inserts.push({ pos, card: { cat: c.cat, endCard: true, t: fill(c.endText, c._p1, c._p2), r: '', pen: '' } });
     }
   });

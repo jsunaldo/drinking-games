@@ -65,11 +65,6 @@
       justify-content: center;
       flex-wrap: wrap;
     }
-    .player-hand-mini {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
     .players-progress {
       display: flex;
       flex-direction: column;
@@ -105,16 +100,6 @@
     }
     .pyr-cell {
       position: relative;
-    }
-    .pyr-drinks-label {
-      position: absolute;
-      top: -18px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.65rem;
-      font-weight: 700;
-      color: var(--gold);
-      white-space: nowrap;
     }
     .pyr-row-wrap {
       display: flex;
@@ -330,7 +315,7 @@
 
   <!-- Game area -->
   <div id="game-area" class="hidden">
-    <div class="phase-steps" id="phase-steps">
+    <div class="phase-steps">
       <div class="phase-step active" id="ps-1">① Deal</div>
       <div class="phase-step" id="ps-2">② Pyramid</div>
       <div class="phase-step" id="ps-3">③ Ride the Bus</div>
@@ -343,7 +328,7 @@
           <div class="panel mb-16">
             <div class="panel-title" id="p1-player-label">Player's Turn</div>
             <div class="question-box" id="question-box">
-              <div class="question-text" id="q-text">Get ready…</div>
+              <div class="question-text">Get ready…</div>
               <div class="answer-buttons" id="q-buttons"></div>
             </div>
             <div class="notif mt-16 hidden" id="p1-result">
@@ -408,7 +393,7 @@
       <div class="panel" style="max-width:500px; margin:0 auto;">
         <div class="panel-title" id="bus-q-label">Question 1 of 4</div>
         <div class="question-box" id="bus-question-box">
-          <div class="question-text" id="bus-q-text"></div>
+          <div class="question-text"></div>
           <div class="answer-buttons" id="bus-q-buttons"></div>
         </div>
         <div class="notif mt-16 hidden" id="bus-result">
@@ -684,6 +669,7 @@ function topCard(cell) {
 let pyrAdvancing = false; // true when waiting for button click to move to next cell
 let pyrGives = [];        // [{giverIdx, cards:[], drinkVal, receiverIdx:null}]
 let pyrMatchValue = null; // rank of the current flipped card — matching hand cards glow
+let p2Epoch = 0;          // bumped on phase change / new game so stale auto-draw timers no-op
 
 function beginPhase2() {
   setPhaseStep(2);
@@ -693,6 +679,7 @@ function beginPhase2() {
   // Build pyramid: row 0 = bottom = 5 cards
   pyramid = PYR_ROWS.map(size => Array.from({length: size}, () => ({ card: deck.pop(), flipped: false, stack: [] })));
   pyrRow = 0; pyrCol = 0; pyrAdvancing = false; pyrMatchValue = null;
+  p2Epoch++;
 
   renderPyramid();
   renderP2Players();
@@ -761,7 +748,9 @@ function flipPyramidCard() {
     document.getElementById('p2-result-title').textContent = `${card.value}${card.suit} — No match, drawing another…`;
     document.getElementById('p2-result-desc').textContent = '';
     document.getElementById('p2-flip-btn').disabled = true;
+    const ep = p2Epoch;
     setTimeout(() => {
+      if (ep !== p2Epoch) return; // phase changed / new game — this timer is stale
       document.getElementById('p2-flip-btn').disabled = false;
       flipPyramidCard();
     }, 700);
@@ -803,8 +792,7 @@ function renderGiveUI(card, drinkVal) {
   result.className = 'notif success mt-16';
 
   const allAssigned = pyrGives.every(g => g.receiverIdx !== null);
-  const nextCol = pyrCol; // already advanced
-  const isLastCell = pyrCol === 0 && pyrRow >= pyramid.length;
+  const isLastCell = pyrRow >= pyramid.length - 1 && pyrCol >= pyramid[pyrRow].length - 1;
 
   document.getElementById('p2-result-title').textContent =
     `Give ${drinkVal} drink${drinkVal > 1 ? 's' : ''} per card — pass your card to someone!`;
@@ -870,9 +858,11 @@ function renderP2Players() {
 
 // ─── Phase 3 ───
 let busLength = 4; // set to rider's hand size at start of phase 3
+let busTransitionTimer = null; // multi-rider handoff; cleared on New Game
 
 function beginPhase3() {
   setPhaseStep(3);
+  p2Epoch++; // orphan any pending pyramid auto-draw timer
   document.getElementById('phase2').classList.add('hidden');
   document.getElementById('phase3').classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -996,7 +986,7 @@ function showBusWin() {
 
   busRiderIdx++;
   if (busRiderIdx < busRiders.length) {
-    setTimeout(() => {
+    busTransitionTimer = setTimeout(() => {
       document.getElementById('bus-question-box').style.display = '';
       startBusRide();
     }, 2500);
@@ -1031,6 +1021,8 @@ function setPhaseStep(n) {
 }
 
 function resetGame() {
+  p2Epoch++; // orphan any pending pyramid auto-draw timer
+  clearTimeout(busTransitionTimer);
   document.getElementById('setup-panel').classList.remove('hidden');
   document.getElementById('game-area').classList.add('hidden');
   document.getElementById('phase1').classList.remove('hidden');

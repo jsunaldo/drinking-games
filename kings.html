@@ -783,7 +783,8 @@ function flipCard(i) {
     addDrawLog('role', `❓ ${pName} is the new Question Master`);
   }
   if (card.value === '8') {
-    showMatePicker();
+    showMatePicker(); // pass button appears after a mate is picked (same gate as the King rule)
+    return;
   }
 
   showPassButton();
@@ -830,6 +831,7 @@ function pickMate(i) {
   document.getElementById('mate-picker').classList.add('hidden');
   updateRoles();
   addDrawLog('role', `🤝 ${players[currentPlayer].name} and ${players[i].name} are now mates`);
+  showPassButton();
 }
 
 // Merge mate pairs into chains: A↔B + B↔C → A↔B↔C (all drink together)
