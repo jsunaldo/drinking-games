@@ -839,10 +839,12 @@ function flipPyramidCard() {
   renderP2Players();
   document.getElementById('pyramid-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+  // Lock the entry button while this card resolves (all later flips are programmatic)
+  const btn = document.getElementById('p2-flip-btn');
+  btn.disabled = true;
+
   if (matches.length === 0) {
     // No match — auto-draw another card on top (no popup, just the pyramid stacking)
-    const btn = document.getElementById('p2-flip-btn');
-    btn.disabled = true;
     btn.textContent = `${card.value}${card.suit} — no match, drawing…`;
     const ep = p2Epoch;
     setTimeout(() => {
@@ -853,8 +855,18 @@ function flipPyramidCard() {
     return;
   }
 
-  // Match → result popup
+  // Match → let the flipped card sit on the pyramid a beat, THEN pop the result
   pyrAdvancing = true;
+  btn.textContent = `${card.value}${card.suit} matched…`;
+  const ep = p2Epoch;
+  setTimeout(() => {
+    if (ep !== p2Epoch) return; // new game / phase change — stale
+    showPyramidResult(card, drinkVal);
+  }, 950);
+}
+
+function showPyramidResult(card, drinkVal) {
+  const matches = players.filter(p => p.hand.some(c => c.value === card.value));
   const isTake = PYR_ROWS[pyrRow] === 4; // the 4-card row is TAKE, all others GIVE
   const nextIsLast = pyrRow >= pyramid.length - 1 && pyrCol >= pyramid[pyrRow].length - 1;
   pyrNextLabel = nextIsLast ? 'Proceed to Ride the Bus →' : 'Next Card →';
