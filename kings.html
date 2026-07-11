@@ -421,6 +421,12 @@
   <!-- ── Game ── -->
   <div id="game-area" class="hidden">
 
+    <!-- Top controls -->
+    <div class="flex gap-8" style="justify-content:flex-end; margin-bottom:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="resetGame()">New Game</button>
+      <a class="btn btn-ghost btn-sm" href="index.html">🏠 Home</a>
+    </div>
+
     <!-- Turn + kings tracker -->
     <div class="kings-header">
       <div class="turn-display">
@@ -451,41 +457,6 @@
       <div class="circle-table" id="circle-table"></div>
     </div>
 
-    <!-- Flipped card result -->
-    <div class="rule-display hidden" id="rule-display">
-      <div class="rule-drawn-lbl" id="rule-drawn"></div>
-      <div class="rule-name-big"  id="rule-name"></div>
-      <div class="rule-desc-text" id="rule-desc"></div>
-    </div>
-
-    <!-- King: enter house rule (modal) -->
-    <div class="kings-overlay hidden" id="rule-maker">
-      <div class="kings-modal">
-        <div class="panel-title" id="rule-maker-title">Make a House Rule</div>
-        <div class="flex gap-8">
-          <input class="form-input" id="rule-input" placeholder="Type your own rule…"/>
-          <button class="btn btn-primary" onclick="addRule()">Add Rule</button>
-        </div>
-        <div class="rule-sug-label">…or tap a suggestion</div>
-        <div class="rule-suggestions" id="rule-suggestions"></div>
-      </div>
-    </div>
-
-    <!-- 8: pick a mate (modal) -->
-    <div class="kings-overlay hidden" id="mate-picker">
-      <div class="kings-modal">
-        <div class="panel-title" id="mate-picker-title">Pick Your Mate</div>
-        <div class="flex gap-8 flex-wrap" id="mate-buttons" style="justify-content:center;"></div>
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="flex gap-12 items-center" style="justify-content:center; margin: 8px 0 24px; flex-wrap:wrap;">
-      <button class="btn btn-gold btn-lg hidden" id="next-turn-btn" onclick="advanceTurn()"></button>
-      <button class="btn btn-ghost" onclick="resetGame()">New Game</button>
-      <a class="btn btn-ghost" href="index.html">🏠 Home</a>
-    </div>
-
     <!-- Draw history -->
     <div class="panel">
       <div class="panel-title">Draw History</div>
@@ -494,6 +465,37 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Turn modal — pops for every drawn card -->
+<div class="kings-overlay hidden" id="turn-modal">
+  <div class="kings-modal" style="text-align:center;">
+    <div id="tm-drawn" style="font-size:0.85rem; color:var(--muted); margin-bottom:8px;"></div>
+    <div id="tm-card" style="display:flex; justify-content:center; margin-bottom:14px;"></div>
+    <div id="tm-rule-name" style="font-size:1.5rem; font-weight:800; color:var(--gold); margin-bottom:6px;"></div>
+    <div id="tm-rule-desc" style="color:var(--text); font-size:0.95rem; line-height:1.55;"></div>
+
+    <!-- King: enter a house rule -->
+    <div id="tm-rule-section" class="hidden" style="margin-top:16px;">
+      <div class="flex gap-8">
+        <input class="form-input" id="rule-input" placeholder="Type your own rule…"/>
+        <button class="btn btn-primary" onclick="addRule()">Add Rule</button>
+      </div>
+      <div class="rule-sug-label">…or tap a suggestion</div>
+      <div class="rule-suggestions" id="rule-suggestions"></div>
+    </div>
+
+    <!-- 8: pick a mate -->
+    <div id="tm-mate-section" class="hidden" style="margin-top:16px;">
+      <div class="rule-sug-label">Pick your mate — they drink whenever you drink</div>
+      <div class="flex gap-8 flex-wrap" id="mate-buttons" style="justify-content:center;"></div>
+    </div>
+
+    <!-- Pass / put-in-can button -->
+    <div style="margin-top:20px;">
+      <button class="btn btn-gold btn-lg w-full hidden" id="next-turn-btn" onclick="advanceTurn()"></button>
+    </div>
   </div>
 </div>
 
@@ -674,9 +676,9 @@ function startGame() {
 
   document.getElementById('setup-panel').classList.add('hidden');
   document.getElementById('game-area').classList.remove('hidden');
-  document.getElementById('rule-display').classList.add('hidden');
-  document.getElementById('rule-maker').classList.add('hidden');
-  document.getElementById('mate-picker').classList.add('hidden');
+  document.getElementById('turn-modal').classList.add('hidden');
+  document.getElementById('tm-rule-section').classList.add('hidden');
+  document.getElementById('tm-mate-section').classList.add('hidden');
   document.getElementById('rules-banner').classList.add('hidden');
   document.getElementById('roles-banner').classList.add('hidden');
   document.getElementById('next-turn-btn').classList.add('hidden');
@@ -772,23 +774,16 @@ function renderCircle() {
   table.querySelectorAll('.cc-slot .card-mid').forEach(el => el.style.fontSize = midSize);
 }
 
-// ── Flip a card ──
+// ── Modal helpers ──
+function showTurnModal() { document.getElementById('turn-modal').classList.remove('hidden'); }
+function hideTurnModal() { document.getElementById('turn-modal').classList.add('hidden'); }
+
+// ── Flip a card → open the turn modal ──
 function flipCard(i) {
-  if (!gameActive || cardPositions[i].drawn || cardPositions[i].tucked) return;
+  if (!gameActive || cardFlipped || cardPositions[i].drawn || cardPositions[i].tucked) return;
 
-  // A card is already flipped but not yet passed. If the turn is fully resolved
-  // (pass button showing — no rule/mate pending), clicking a new card means the
-  // next player is going: auto-pass the current card into the can first.
-  if (cardFlipped) {
-    const passReady = !document.getElementById('next-turn-btn').classList.contains('hidden');
-    if (!passReady) return; // a rule or mate is still pending — ignore card clicks
-    advanceTurn();          // puts the card in the can (random mode) & maybe cracks
-    if (!gameActive) return; // the can cracked — don't reveal the clicked card
-    if (cardPositions[i].drawn || cardPositions[i].tucked) return; // safety
-  }
-
+  ensureAudio(); // unlock audio on this user gesture (for the crack sound later)
   cardFlipped = true;
-
   cardPositions[i].drawn = true;
   lastDrawnIdx = i;
   renderCircle();
@@ -798,11 +793,14 @@ function flipCard(i) {
   const rule = KINGS_RULES[card.value];
   const pName = players[currentPlayer].name;
 
-  // Show result
-  document.getElementById('rule-display').classList.remove('hidden');
-  document.getElementById('rule-drawn').textContent = `${pName} drew the ${card.value}${card.suit}`;
-  document.getElementById('rule-name').textContent  = rule.name;
-  document.getElementById('rule-desc').textContent  = rule.desc;
+  // Populate the modal
+  document.getElementById('tm-drawn').textContent = `${pName} drew…`;
+  document.getElementById('tm-card').innerHTML = cardHTML(card, 'xl flipped-reveal');
+  document.getElementById('tm-rule-name').textContent = rule.name;
+  document.getElementById('tm-rule-desc').textContent = rule.desc;
+  document.getElementById('tm-rule-section').classList.add('hidden');
+  document.getElementById('tm-mate-section').classList.add('hidden');
+  document.getElementById('next-turn-btn').classList.add('hidden');
 
   if (card.value !== 'K') {
     addDrawLog('', `${pName} drew the ${card.value}${card.suit} — ${rule.name}`);
@@ -812,13 +810,11 @@ function flipCard(i) {
     kingsDrawn++;
     updateKingsDisplay();
 
-    // 4th-King mode: Kings tuck under the tab on draw; the 4th one cracks it.
+    // 4th-King mode: Kings tuck on draw; the 4th cracks the can (no modal — straight to crack)
     if (crackMode === 'fourthking') {
       cardPositions[i].tucked = true;
       tuckedCards.push(card);
-      justTucked = true;
-      renderCircle();
-      justTucked = false;
+      justTucked = true; renderCircle(); justTucked = false;
       if (kingsDrawn >= 4) {
         addDrawLog('king', `💥 ${pName} drew the 4th King — the can CRACKS!`);
         crackCan(pName);
@@ -826,17 +822,14 @@ function flipCard(i) {
       }
     }
 
-    // Both modes: draw a King → make a house rule
+    // Both modes: draw a King → make a house rule (in the modal)
     addDrawLog('king', `👑 ${pName} drew a King (#${kingsDrawn}) — make a house rule`);
     pendingKing = true;
-    document.getElementById('turn-sub').textContent = `👑 ${pName} makes a house rule…`;
-    renderCircle(); // disable card clicks
-    const rm = document.getElementById('rule-maker');
-    rm.classList.remove('hidden');
-    document.getElementById('rule-maker-title').textContent = `${pName}: Make a House Rule (King #${kingsDrawn})`;
+    document.getElementById('tm-rule-section').classList.remove('hidden');
     document.getElementById('rule-input').value = '';
     renderRuleSuggestions();
-    setTimeout(() => document.getElementById('rule-input').focus(), 80);
+    showTurnModal();
+    setTimeout(() => document.getElementById('rule-input').focus(), 120);
     return;
   }
 
@@ -846,31 +839,70 @@ function flipCard(i) {
     addDrawLog('role', `❓ ${pName} is the new Question Master`);
   }
   if (card.value === '8') {
-    showMatePicker(); // pass button appears after a mate is picked (same gate as the King rule)
+    document.getElementById('tm-mate-section').classList.remove('hidden');
+    document.getElementById('mate-buttons').innerHTML = players
+      .map((p, idx) => idx === currentPlayer ? '' :
+        `<button class="btn btn-surface" onclick="pickMate(${idx})">${p.name}</button>`).join('');
+    showTurnModal(); // pass button appears after picking a mate
     return;
   }
 
   showPassButton();
+  showTurnModal();
 }
 
-// ── The can cracks: suspense beat → crack render → overlay ──
+// ── Crack sound (Web Audio — no file, works offline) ──
+let audioCtx = null;
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) {}
+}
+function playCrackSound() {
+  if (!audioCtx) return;
+  try {
+    const now = audioCtx.currentTime;
+    // sharp "crack" click
+    const osc = audioCtx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.09);
+    const og = audioCtx.createGain();
+    og.gain.setValueAtTime(0.45, now);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    osc.connect(og).connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.14);
+    // fizzy "psssht" — decaying high-passed noise
+    const dur = 0.85;
+    const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let k = 0; k < data.length; k++) {
+      const t = k / data.length;
+      data[k] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.8);
+    }
+    const noise = audioCtx.createBufferSource(); noise.buffer = buf;
+    const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1400;
+    const ng = audioCtx.createGain(); ng.gain.value = 0.5;
+    noise.connect(hp).connect(ng).connect(audioCtx.destination);
+    noise.start(now + 0.02); noise.stop(now + dur);
+  } catch (e) {}
+}
+
+// ── The can cracks: suspense beat → crack render + sound → overlay ──
 function crackCan(pName) {
   gameActive = false;
-  document.getElementById('rule-display').classList.remove('hidden');
-  document.getElementById('rule-drawn').textContent = '';
-  document.getElementById('rule-name').textContent  = '😳 The tab pops…';
-  document.getElementById('rule-desc').textContent  = 'The can is cracking…';
-  document.getElementById('turn-sub').textContent   = '🍺 Game over!';
+  hideTurnModal();
   document.getElementById('next-turn-btn').classList.add('hidden');
-  document.getElementById('rule-maker').classList.add('hidden');
-  document.getElementById('mate-picker').classList.add('hidden');
+  document.getElementById('turn-sub').textContent = '😳 The tab is straining…';
+  ensureAudio();
 
   clearTimeout(crackTimer);
   crackTimer = setTimeout(() => {
     canCracked = true;
     renderCircle(); // tab snaps, cards eject, spray + PSSSHT, shake
-    document.getElementById('rule-name').textContent = '💥 THE CAN CRACKED!';
-    document.getElementById('rule-desc').textContent = `${pName} popped the tab — chug the whole can! 🍺`;
+    playCrackSound();
+    document.getElementById('turn-sub').textContent = '🍺 The can CRACKED!';
     crackTimer = setTimeout(() => showCrackOverlay(pName), 1500);
   }, 700);
 }
@@ -905,6 +937,7 @@ function dismissKingOverlay() {
 function continueAfterCrack() {
   clearTimeout(crackTimer);
   dismissKingOverlay();
+  hideTurnModal();
   tuckedCards = [];
   canCracked = false;
   kingsDrawn = 0; // fresh can → 4th-King mode counts from zero again
@@ -916,37 +949,22 @@ function continueAfterCrack() {
   currentPlayer = (currentPlayer + 1) % players.length;
   lastDrawnIdx = -1;
   cardFlipped = false;
-  document.getElementById('rule-display').classList.add('hidden');
   document.getElementById('next-turn-btn').classList.add('hidden');
   updateTurnDisplay();
   renderCircle();
 
   if (cardPositions.every(p => p.drawn || p.tucked)) {
-    document.getElementById('rule-display').classList.remove('hidden');
-    document.getElementById('rule-name').textContent = '🎉 All 52 cards used!';
-    document.getElementById('rule-desc').textContent = 'The deck is empty — good game!';
+    document.getElementById('turn-sub').textContent = '🎉 All 52 cards used — good game!';
     gameActive = false;
   }
 }
 
-// ── Mate picker (8 rule) ──
-function showMatePicker() {
-  const picker = document.getElementById('mate-picker');
-  picker.classList.remove('hidden');
-  document.getElementById('mate-picker-title').textContent =
-    `${players[currentPlayer].name}: Pick Your Mate 🤝`;
-  document.getElementById('mate-buttons').innerHTML = players
-    .map((p, i) => i === currentPlayer ? '' :
-      `<button class="btn btn-surface" onclick="pickMate(${i})">${p.name}</button>`)
-    .join('');
-}
-
+// ── Pick a mate (8 rule) — directional: the mate drinks when the picker drinks ──
 function pickMate(i) {
-  // Directional: the picked mate drinks when the picker drinks — NOT the reverse.
   const master = players[currentPlayer].name;
   const mate   = players[i].name;
   mates.push({ master, mate });
-  document.getElementById('mate-picker').classList.add('hidden');
+  document.getElementById('tm-mate-section').classList.add('hidden');
   updateRoles();
   addDrawLog('role', `🤝 ${mate} now drinks whenever ${master} drinks`);
   showPassButton();
@@ -972,7 +990,7 @@ function addRule() {
   const val = document.getElementById('rule-input').value.trim();
   if (!val) return;
   houseRules.push(val);
-  document.getElementById('rule-maker').classList.add('hidden');
+  document.getElementById('tm-rule-section').classList.add('hidden');
   pendingKing = false;
   updateBanners();
   renderCircle();
@@ -987,12 +1005,12 @@ function showPassButton() {
     ? `🍺 Put Card in Can & Pass to ${nextName} →`
     : `Pass to ${nextName} →`;
   btn.classList.remove('hidden');
-  revealEl('next-turn-btn');
 }
 
-// ── Pass: (random mode) tuck the drawn card & maybe crack, then next player ──
+// ── Pass (from the modal): (random mode) tuck the drawn card & maybe crack, then next player ──
 function advanceTurn() {
   if (!gameActive) return;
+  hideTurnModal();
 
   // Random mode — the drawn card goes into the can tab; roll for a crack
   if (crackMode === 'random' && lastDrawnIdx >= 0 && !cardPositions[lastDrawnIdx].tucked) {
@@ -1002,8 +1020,6 @@ function advanceTurn() {
     const passer = players[currentPlayer].name;
 
     document.getElementById('next-turn-btn').classList.add('hidden');
-    document.getElementById('rule-maker').classList.add('hidden');
-    document.getElementById('mate-picker').classList.add('hidden');
     justTucked = true;
     renderCircle(); // card slides into the can, tab bends
     justTucked = false;
@@ -1020,19 +1036,13 @@ function advanceTurn() {
   currentPlayer = (currentPlayer + 1) % players.length;
   lastDrawnIdx  = -1;
   cardFlipped   = false;
-  document.getElementById('rule-display').classList.add('hidden');
-  document.getElementById('mate-picker').classList.add('hidden');
   document.getElementById('next-turn-btn').classList.add('hidden');
   updateTurnDisplay();
   renderCircle();
-  revealEl('circle-table');
 
   // All cards used up (only reachable in 4th-King mode if somehow no crack)?
   if (cardPositions.every(p => p.drawn || p.tucked)) {
-    document.getElementById('rule-display').classList.remove('hidden');
-    document.getElementById('rule-drawn').textContent = '';
-    document.getElementById('rule-name').textContent  = '🎉 All 52 cards drawn!';
-    document.getElementById('rule-desc').textContent  = 'Every card has been flipped. The game is over — hope it was a good time!';
+    document.getElementById('turn-sub').textContent = '🎉 All 52 cards used — good game!';
     gameActive = false;
   }
 }
@@ -1071,6 +1081,8 @@ function updateBanners() {
 function resetGame() {
   gameActive = false;
   clearTimeout(crackTimer);
+  document.getElementById('turn-modal').classList.add('hidden');
+  dismissKingOverlay();
   document.getElementById('game-area').classList.add('hidden');
   document.getElementById('setup-panel').classList.remove('hidden');
 }
