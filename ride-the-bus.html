@@ -421,10 +421,6 @@
           <div class="card-table" style="min-height:240px; flex-direction:column;">
             <div class="pyramid-wrap" id="pyramid-wrap"></div>
           </div>
-
-          <div style="margin-top:16px;">
-            <button class="btn btn-gold btn-lg w-full" id="p2-flip-btn" onclick="flipPyramidCard()">▶ Begin the Pyramid</button>
-          </div>
         </div>
         <div>
           <div class="panel">
@@ -498,6 +494,17 @@
       <div id="pyr-give-area" style="text-align:left;"></div>
       <div class="rtb-modal-btns" style="margin-top:18px;">
         <button class="btn btn-gold btn-lg" id="pyr-modal-next" onclick="pyrModalNext()">Next Card →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- "Begin the Pyramid" start popup -->
+  <div class="rtb-overlay hidden" id="pyr-begin-modal">
+    <div class="rtb-modal">
+      <div class="rtb-modal-title" style="color:var(--gold);">🔺 The Pyramid</div>
+      <div class="rtb-modal-desc">Cards flip up the pyramid one at a time. When a flipped card matches one in someone's hand, a popup says who drinks or gives it away — worth more the higher you climb.</div>
+      <div class="rtb-modal-btns">
+        <button class="btn btn-gold btn-lg" id="pyr-begin-btn" onclick="startPyramid()">▶ Begin the Pyramid</button>
       </div>
     </div>
   </div>
@@ -779,10 +786,13 @@ function beginPhase2() {
   renderPyramid();
   renderP2Players();
   document.getElementById('pyr-modal').classList.add('hidden');
-  const btn = document.getElementById('p2-flip-btn');
-  btn.disabled = false;
-  btn.textContent = '▶ Begin the Pyramid';
+  document.getElementById('pyr-begin-modal').classList.remove('hidden'); // prompt to start
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function startPyramid() {
+  document.getElementById('pyr-begin-modal').classList.add('hidden');
+  flipPyramidCard();
 }
 
 function renderPyramid() {
@@ -839,17 +849,11 @@ function flipPyramidCard() {
   renderP2Players();
   document.getElementById('pyramid-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  // Lock the entry button while this card resolves (all later flips are programmatic)
-  const btn = document.getElementById('p2-flip-btn');
-  btn.disabled = true;
-
   if (matches.length === 0) {
     // No match — auto-draw another card on top (no popup, just the pyramid stacking)
-    btn.textContent = `${card.value}${card.suit} — no match, drawing…`;
     const ep = p2Epoch;
     setTimeout(() => {
       if (ep !== p2Epoch) return; // phase changed / new game — stale timer
-      btn.disabled = false;
       flipPyramidCard();
     }, 750);
     return;
@@ -857,7 +861,6 @@ function flipPyramidCard() {
 
   // Match → let the flipped card sit on the pyramid a beat, THEN pop the result
   pyrAdvancing = true;
-  btn.textContent = `${card.value}${card.suit} matched…`;
   const ep = p2Epoch;
   setTimeout(() => {
     if (ep !== p2Epoch) return; // new game / phase change — stale
@@ -1149,6 +1152,7 @@ function resetGame() {
   document.getElementById('bus-win-overlay').classList.add('hidden');
   document.getElementById('deal-result-overlay').classList.add('hidden');
   document.getElementById('pyr-modal').classList.add('hidden');
+  document.getElementById('pyr-begin-modal').classList.add('hidden');
   document.getElementById('setup-panel').classList.remove('hidden');
   document.getElementById('game-area').classList.add('hidden');
   document.getElementById('phase1').classList.remove('hidden');
