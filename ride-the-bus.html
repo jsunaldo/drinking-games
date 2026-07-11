@@ -176,24 +176,34 @@
     .give-row.assigned .give-row-btns { display: none; }
     .give-row-assigned-to { font-size: 0.8rem; color: var(--green); font-weight: 700; margin-top: 2px; }
 
-    .give-lead { font-size: 1rem; font-weight: 800; color: var(--gold); margin-bottom: 6px; }
-    /* Big, obvious receiver buttons that pulse so you know a player must be picked */
+    .give-lead { font-size: 1rem; font-weight: 800; color: var(--gold); margin-bottom: 6px; text-align: center; }
+    /* Receiver buttons that pulse — each shows the player's name + hand summary */
     .give-recv-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;
     }
     .give-recv-btn {
-      padding: 14px 10px; font-size: 1.05rem; font-weight: 800;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+      padding: 12px 12px; text-align: left;
       background: var(--surface); color: var(--text);
       border: 2px solid var(--gold); border-radius: 12px; cursor: pointer;
       animation: giveFlash 1.1s ease-in-out infinite;
       transition: transform 0.1s;
     }
     .give-recv-btn:hover { background: rgba(240,180,41,0.15); }
-    .give-recv-btn:active { transform: scale(0.95); }
+    .give-recv-btn:active { transform: scale(0.97); }
     @keyframes giveFlash {
       0%,100% { box-shadow: 0 0 0 0 rgba(240,180,41,0); }
       50%      { box-shadow: 0 0 0 5px rgba(240,180,41,0.45); }
     }
+    .give-recv-name { font-size: 1.05rem; font-weight: 800; }
+    .give-recv-hand { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; font-size: 0.68rem; font-weight: 600; }
+    .hs-count { color: var(--muted); margin-right: 2px; }
+    .hs-card { padding: 0 3px; border-radius: 3px; background: rgba(255,255,255,0.08); }
+    .hs-red { color: #ff6b6b; }
+    .hs-blk { color: #d6deec; }
+    .hs-empty { color: var(--muted); font-style: italic; }
+    /* let the pyramid result modal scroll if a lot of gives/players */
+    #pyr-modal-inner, #bus-win-overlay .rtb-modal { max-height: 88vh; overflow-y: auto; }
 
     /* ── Bus ride pile row ── */
     .bus-pile-row {
@@ -246,25 +256,7 @@
     .rtb-modal-desc { color: var(--text); font-size: 1rem; line-height: 1.55; margin-bottom: 22px; }
     .rtb-modal-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
-    /* ── Phase 2 sticky action dock — result + flip button never leave the screen ── */
-    .p2-dock {
-      position: sticky;
-      bottom: 10px;
-      z-index: 60;
-      margin-top: 16px;
-      background: rgba(19,31,48,0.92);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--hairline);
-      border-radius: 16px;
-      padding: 12px;
-      box-shadow: 0 -4px 28px rgba(0,0,0,0.5);
-    }
-    .p2-dock .notif { max-height: 36vh; overflow-y: auto; margin-bottom: 10px; }
-    .p2-dock-row { display: flex; gap: 12px; align-items: center; }
-    .p2-flip-view { flex-shrink: 0; min-width: 54px; display: flex; justify-content: center; }
-
-    /* Compact pyramid on phones so it fits above the dock */
+    /* Compact pyramid on phones */
     @media (max-width: 650px) {
       .pyramid-wrap { padding: 8px 0; }
       .pyr-row { gap: 5px; margin-bottom: 5px; }
@@ -430,16 +422,8 @@
             <div class="pyramid-wrap" id="pyramid-wrap"></div>
           </div>
 
-          <!-- Sticky dock: flipped card + result + flip button always on screen -->
-          <div class="p2-dock">
-            <div class="notif hidden" id="p2-result" style="margin-bottom:10px;">
-              <div class="notif-title" id="p2-result-title"></div>
-              <div id="p2-result-desc"></div>
-            </div>
-            <div class="p2-dock-row">
-              <div class="p2-flip-view" id="p2-flip-view"></div>
-              <button class="btn btn-gold btn-lg" id="p2-flip-btn" style="flex:1;" onclick="flipPyramidCard()">Flip Next Card</button>
-            </div>
+          <div style="margin-top:16px;">
+            <button class="btn btn-gold btn-lg w-full" id="p2-flip-btn" onclick="flipPyramidCard()">▶ Begin the Pyramid</button>
           </div>
         </div>
         <div>
@@ -502,6 +486,19 @@
         <div class="rtb-modal-desc" id="deal-result-desc"></div>
       </div>
       <button class="btn btn-gold btn-lg w-full" id="deal-result-next" onclick="dealResultNext()">Next →</button>
+    </div>
+  </div>
+
+  <!-- Pyramid result popup -->
+  <div class="rtb-overlay hidden" id="pyr-modal">
+    <div class="rtb-modal" id="pyr-modal-inner">
+      <div id="pyr-modal-card" style="display:flex; justify-content:center; margin-bottom:12px;"></div>
+      <div class="rtb-modal-title" id="pyr-modal-title"></div>
+      <div class="rtb-modal-desc" id="pyr-modal-desc"></div>
+      <div id="pyr-give-area" style="text-align:left;"></div>
+      <div class="rtb-modal-btns" style="margin-top:18px;">
+        <button class="btn btn-gold btn-lg" id="pyr-modal-next" onclick="pyrModalNext()">Next Card →</button>
+      </div>
     </div>
   </div>
 </div>
@@ -754,9 +751,20 @@ function topCard(cell) {
 }
 
 let pyrAdvancing = false; // true when waiting for button click to move to next cell
-let pyrGives = [];        // [{giverIdx, cards:[], drinkVal, receiverIdx:null}]
+let pyrGives = [];        // [{giverIdx, card, drinkVal, receiverIdx:null}]
 let pyrMatchValue = null; // rank of the current flipped card — matching hand cards glow
+let pyrNextLabel = 'Next Card →';
 let p2Epoch = 0;          // bumped on phase change / new game so stale auto-draw timers no-op
+
+// compact hand summary shown on the give-receiver buttons
+function handSummary(p) {
+  if (!p.hand.length) return '<span class="hs-empty">no cards</span>';
+  const cards = p.hand.map(c => {
+    const red = c.suit === '♥' || c.suit === '♦';
+    return `<span class="hs-card ${red ? 'hs-red' : 'hs-blk'}">${c.value}${c.suit}</span>`;
+  }).join('');
+  return `<span class="hs-count">${p.hand.length} card${p.hand.length !== 1 ? 's' : ''}</span>${cards}`;
+}
 
 function beginPhase2() {
   setPhaseStep(2);
@@ -770,8 +778,7 @@ function beginPhase2() {
 
   renderPyramid();
   renderP2Players();
-  document.getElementById('p2-result').classList.add('hidden');
-  document.getElementById('p2-flip-view').innerHTML = cardHTML(null, 'sm');
+  document.getElementById('pyr-modal').classList.add('hidden');
   const btn = document.getElementById('p2-flip-btn');
   btn.disabled = false;
   btn.textContent = '▶ Begin the Pyramid';
@@ -800,10 +807,9 @@ function renderPyramid() {
 }
 
 function flipPyramidCard() {
-  // Scroll up to the pyramid so you can see where you are + the card landing
-  document.getElementById('pyramid-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('pyr-modal').classList.add('hidden'); // close any open result popup
 
-  // If a match was just found, advance to next cell first
+  // If a match was just resolved, advance to the next cell first
   if (pyrAdvancing) {
     pyrAdvancing = false;
     pyrMatchValue = null;
@@ -815,7 +821,7 @@ function flipPyramidCard() {
   const cell = pyramid[pyrRow][pyrCol];
   const drinkVal = pyrRow + 1;
 
-  // Draw the card to check: original pyramid card on first flip, deck card on top thereafter
+  // Draw the card: original pyramid card on first flip, deck card on top thereafter
   let card;
   if (!cell.flipped) {
     cell.flipped = true;
@@ -831,96 +837,88 @@ function flipPyramidCard() {
 
   renderPyramid();
   renderP2Players();
-  // Show the drawn card in the sticky dock, right next to the button
-  document.getElementById('p2-flip-view').innerHTML = cardHTML(card, 'sm flipped-reveal');
+  document.getElementById('pyramid-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   if (matches.length === 0) {
-    // No match — auto-draw another card on top after a short pause
-    document.getElementById('p2-result').classList.remove('hidden');
-    document.getElementById('p2-result').className = 'notif mt-16';
-    document.getElementById('p2-result-title').textContent = `${card.value}${card.suit} — No match, drawing another…`;
-    document.getElementById('p2-result-desc').textContent = '';
-    document.getElementById('p2-flip-btn').disabled = true;
+    // No match — auto-draw another card on top (no popup, just the pyramid stacking)
+    const btn = document.getElementById('p2-flip-btn');
+    btn.disabled = true;
+    btn.textContent = `${card.value}${card.suit} — no match, drawing…`;
     const ep = p2Epoch;
     setTimeout(() => {
-      if (ep !== p2Epoch) return; // phase changed / new game — this timer is stale
-      document.getElementById('p2-flip-btn').disabled = false;
+      if (ep !== p2Epoch) return; // phase changed / new game — stale timer
+      btn.disabled = false;
       flipPyramidCard();
-    }, 700);
-  } else {
-    pyrAdvancing = true;
-    const isTake = PYR_ROWS[pyrRow] === 4; // the 4-card row is TAKE, all others are GIVE
-
-    if (isTake) {
-      // TAKE row — matching players drink, no card passing
-      const result = document.getElementById('p2-result');
-      result.classList.remove('hidden');
-      result.className = 'notif danger mt-16';
-      document.getElementById('p2-result-title').textContent = `${card.value}${card.suit} — TAKE ${drinkVal} drinks!`;
-      document.getElementById('p2-result-desc').textContent = matches.map(p => {
-        const cnt = p.hand.filter(c => c.value === card.value).length;
-        return `${p.name} drinks ${cnt * drinkVal}`;
-      }).join(' · ');
-
-      // Peek ahead to label button
-      const nextIsLast = (pyrCol + 1 >= pyramid[pyrRow].length) && (pyrRow >= pyramid.length - 1);
-      document.getElementById('p2-flip-btn').disabled = false;
-      document.getElementById('p2-flip-btn').textContent = nextIsLast ? 'Proceed to Ride the Bus →' : 'Next Card →';
-    } else {
-      // GIVE row — one assignment PER matching card so each can go to a different player
-      pyrGives = [];
-      matches.forEach(p => {
-        const gi = players.indexOf(p);
-        p.hand.filter(c => c.value === card.value).forEach(c => {
-          pyrGives.push({ giverIdx: gi, card: c, drinkVal, receiverIdx: null });
-        });
-      });
-
-      renderGiveUI(card, drinkVal);
-      document.getElementById('p2-flip-btn').disabled = true;
-    }
+    }, 750);
+    return;
   }
+
+  // Match → result popup
+  pyrAdvancing = true;
+  const isTake = PYR_ROWS[pyrRow] === 4; // the 4-card row is TAKE, all others GIVE
+  const nextIsLast = pyrRow >= pyramid.length - 1 && pyrCol >= pyramid[pyrRow].length - 1;
+  pyrNextLabel = nextIsLast ? 'Proceed to Ride the Bus →' : 'Next Card →';
+
+  document.getElementById('pyr-modal-card').innerHTML = cardHTML(card, 'xl flipped-reveal');
+  const nb = document.getElementById('pyr-modal-next');
+
+  if (isTake) {
+    document.getElementById('pyr-modal-inner').className = 'rtb-modal wrong';
+    document.getElementById('pyr-modal-title').textContent = `TAKE ${drinkVal} drink${drinkVal > 1 ? 's' : ''}!`;
+    document.getElementById('pyr-modal-desc').innerHTML =
+      `${card.value}${card.suit} matched — ` + matches.map(p => {
+        const cnt = p.hand.filter(c => c.value === card.value).length;
+        return `<strong>${p.name}</strong> drinks ${cnt * drinkVal}`;
+      }).join(' · ');
+    document.getElementById('pyr-give-area').innerHTML = '';
+    nb.textContent = pyrNextLabel; nb.classList.remove('hidden'); nb.disabled = false;
+  } else {
+    pyrGives = [];
+    matches.forEach(p => {
+      const gi = players.indexOf(p);
+      p.hand.filter(c => c.value === card.value).forEach(c =>
+        pyrGives.push({ giverIdx: gi, card: c, drinkVal, receiverIdx: null }));
+    });
+    document.getElementById('pyr-modal-inner').className = 'rtb-modal right';
+    document.getElementById('pyr-modal-title').textContent = `${card.value}${card.suit} matched — give it away!`;
+    document.getElementById('pyr-modal-desc').textContent =
+      `Give ${drinkVal} drink${drinkVal > 1 ? 's' : ''} per card — tap who has to take each one.`;
+    renderGiveUI(card, drinkVal);
+  }
+
+  document.getElementById('pyr-modal').classList.remove('hidden');
 }
 
 function renderGiveUI(card, drinkVal) {
-  const result = document.getElementById('p2-result');
-  result.classList.remove('hidden');
-  result.className = 'notif success mt-16';
-
   const allAssigned = pyrGives.every(g => g.receiverIdx !== null);
-  const isLastCell = pyrRow >= pyramid.length - 1 && pyrCol >= pyramid[pyrRow].length - 1;
 
-  document.getElementById('p2-result-title').textContent = allAssigned
-    ? '✓ All cards passed — carry on!'
-    : '👇 Give each card — tap who has to take it';
-
-  document.getElementById('p2-result-desc').innerHTML = `
+  document.getElementById('pyr-give-area').innerHTML = `
     <div class="give-list">
       ${pyrGives.map((g, gi) => {
         const giver = players[g.giverIdx];
         const c = g.card;
-        const cardHtml = cardHTML(c, 'sm');
         if (g.receiverIdx !== null) {
           return `<div class="give-row assigned">
-            <div class="give-row-cards">${cardHtml}</div>
+            <div class="give-row-cards">${cardHTML(c, 'sm')}</div>
             <div class="give-row-assigned-to">✓ ${giver.name}'s ${c.value}${c.suit} → ${players[g.receiverIdx].name} takes ${drinkVal}</div>
           </div>`;
         }
         const btns = players.map((p, pi) => pi === g.giverIdx ? '' :
-          `<button class="give-recv-btn" onclick="assignGive(${gi}, ${pi})">${p.name}</button>`
+          `<button class="give-recv-btn" onclick="assignGive(${gi}, ${pi})">
+             <span class="give-recv-name">${p.name}</span>
+             <span class="give-recv-hand">${handSummary(p)}</span>
+           </button>`
         ).join('');
         return `<div class="give-row">
-          <div class="give-lead">${giver.name}'s ${c.value}${c.suit} → ${drinkVal} drink${drinkVal > 1 ? 's' : ''} · who takes it?</div>
-          <div class="give-row-cards">${cardHtml}</div>
+          <div class="give-lead">${giver.name}'s ${c.value}${c.suit} → who takes it?</div>
           <div class="give-recv-grid">${btns}</div>
         </div>`;
       }).join('')}
     </div>`;
 
-  if (allAssigned) {
-    document.getElementById('p2-flip-btn').disabled = false;
-    document.getElementById('p2-flip-btn').textContent = isLastCell ? 'Proceed to Ride the Bus →' : 'Next Card →';
-  }
+  const nb = document.getElementById('pyr-modal-next');
+  if (allAssigned) { nb.textContent = pyrNextLabel; nb.classList.remove('hidden'); nb.disabled = false; }
+  else { nb.classList.add('hidden'); }
 }
 
 function assignGive(giveIdx, receiverIdx) {
@@ -930,16 +928,18 @@ function assignGive(giveIdx, receiverIdx) {
   // Move this one card from giver → receiver
   const giver    = players[g.giverIdx];
   const receiver = players[receiverIdx];
-  [g.card].forEach(card => {
-    const idx = giver.hand.findIndex(c => c.id === card.id);
-    if (idx !== -1) giver.hand.splice(idx, 1);
-    receiver.hand.push(card);
-  });
+  const idx = giver.hand.findIndex(c => c.id === g.card.id);
+  if (idx !== -1) giver.hand.splice(idx, 1);
+  receiver.hand.push(g.card);
   g.receiverIdx = receiverIdx;
 
-  // Re-render give UI (pass null for card since we're just refreshing)
-  renderGiveUI(null, g.drinkVal);
+  renderGiveUI(g.card, g.drinkVal);
   renderP2Players();
+}
+
+function pyrModalNext() {
+  document.getElementById('pyr-modal').classList.add('hidden');
+  flipPyramidCard(); // advances to the next cell (pyrAdvancing is true)
 }
 
 function renderP2Players() {
@@ -1136,6 +1136,7 @@ function resetGame() {
   clearTimeout(busTransitionTimer);
   document.getElementById('bus-win-overlay').classList.add('hidden');
   document.getElementById('deal-result-overlay').classList.add('hidden');
+  document.getElementById('pyr-modal').classList.add('hidden');
   document.getElementById('setup-panel').classList.remove('hidden');
   document.getElementById('game-area').classList.add('hidden');
   document.getElementById('phase1').classList.remove('hidden');
