@@ -54,6 +54,17 @@
     }
     .king-slot.filled { border-color: var(--accent); background: rgba(231,76,60,0.1); }
 
+    /* crack-mode toggle */
+    .cm-btn { flex: 1; }
+    .cm-btn.active { border: 1px solid var(--gold); color: var(--gold); background: rgba(240,180,41,0.12); }
+
+    /* a circle slot whose card has been tucked into the can */
+    .cc-slot.tucked-gone .slot-empty {
+      position: absolute; inset: 0;
+      border: 1.5px dashed rgba(255,255,255,0.09);
+      border-radius: 4px;
+    }
+
     /* ── Circle table ── */
     .circle-table-outer { display: flex; justify-content: center; margin: 0 0 18px; }
     .circle-table {
@@ -334,7 +345,7 @@
 
 <div class="page">
   <div class="page-title">👑 King's Cup</div>
-  <div class="page-sub">Flip cards around the beer can. Every King gets tucked under the tab — and sooner or later one of them cracks it.</div>
+  <div class="page-sub">Flip cards around the beer can. Each card you pass gets tucked under the tab — and sooner or later one of them cracks it.</div>
 
   <button class="rules-toggle" onclick="toggleRules(this)">
     📖 How to Play &amp; Card Rules <span class="arrow">▼</span>
@@ -349,9 +360,12 @@
     <h3>Card Rules</h3>
     <div class="kings-rules-grid" id="rules-grid"></div>
 
-    <h3>Kings &amp; the Can 🍺</h3>
-    <p>Every King drawn = the drawer makes a new house rule everyone must follow, <em>and</em> tucks that King under the tab of the can in the middle — just like real life.</p>
-    <p>Each King bends the tab a little more. You never know which King will pop it — but once the tab cracks, <strong>whoever drew that King chugs the middle drink</strong>. It could be the 2nd King… it could be the 4th.</p>
+    <h3>Kings</h3>
+    <p>Every King drawn = the drawer makes a new house rule everyone must follow for the rest of the game. Anyone who breaks a rule drinks.</p>
+
+    <h3>The Can 🍺 (choose a mode at setup)</h3>
+    <p><strong>🎲 Random crack:</strong> each time you pass, your card is wedged under the can's tab. Every card raises the odds of a crack (starts tiny, guaranteed by the 52nd). Whoever's card cracks the tab <strong>chugs the whole can</strong> — just like real life.</p>
+    <p><strong>👑 4th King chugs:</strong> the classic rule — the player who draws the <strong>4th King</strong> chugs the can.</p>
   </div>
 
   <!-- ── Setup ── -->
@@ -371,6 +385,14 @@
           <input class="form-input" placeholder="Player 3" value="Player 3"/>
           <button class="btn btn-ghost btn-sm" onclick="removePlayer(this)">✕</button>
         </div>
+      </div>
+      <div class="form-group" style="margin-top:16px">
+        <label class="form-label">Beer Can Rule</label>
+        <div class="flex gap-8" id="crack-mode-toggle">
+          <button class="btn btn-surface cm-btn" id="cm-random" onclick="setCrackMode('random')">🎲 Random crack</button>
+          <button class="btn btn-surface cm-btn" id="cm-fourth" onclick="setCrackMode('fourthking')">👑 4th King chugs</button>
+        </div>
+        <div style="font-size:0.75rem; color:var(--muted); margin-top:6px;" id="cm-help"></div>
       </div>
       <div class="flex gap-8" style="margin-top:14px">
         <button class="btn btn-ghost btn-sm" onclick="addPlayerRow()">+ Add Player</button>
@@ -516,18 +538,25 @@ function useSuggestion(btn) {
   input.focus();
 }
 
-// ── Crack threshold: which King (2nd–4th) pops the tab ──
-// Hidden & weighted to feel like real life: never the 1st, usually the 3rd or 4th,
-// sometimes the 2nd. The 4th King always cracks it if it gets that far.
-function pickCrackThreshold() {
-  const r = Math.random();
-  if (r < 0.20) return 2;   // 20% — early pop
-  if (r < 0.55) return 3;   // 35%
-  return 4;                 // 45%
+// ── Crack mode ──
+// 'random'    — every card is tucked in the tab on pass; each one has a rising
+//               chance of cracking it (P = N/52, guaranteed on the 52nd).
+// 'fourthking' — classic: Kings tuck; the 4th King drawn cracks it.
+let crackMode = localStorage.getItem('kings-crackmode') || 'random';
+
+function setCrackMode(mode) {
+  crackMode = mode;
+  try { localStorage.setItem('kings-crackmode', mode); } catch (e) {}
+  document.getElementById('cm-random').classList.toggle('active', mode === 'random');
+  document.getElementById('cm-fourth').classList.toggle('active', mode === 'fourthking');
+  document.getElementById('cm-help').textContent = mode === 'random'
+    ? 'Every card goes in the tab when you pass — odds of a crack rise with each one (guaranteed by the 52nd). Whoever cracks it chugs the can.'
+    : 'Classic — the player who draws the 4th King chugs the can.';
+  buildRulesGrid();
 }
 
 // ── State ──
-let cardPositions = []; // [{card, drawn}] × 52
+let cardPositions = []; // [{card, drawn, tucked}] × 52
 let players       = [];
 let currentPlayer = 0;
 let kingsDrawn    = 0;
@@ -537,11 +566,10 @@ let gameActive    = false;
 let lastDrawnIdx  = -1;
 let cardFlipped   = false; // true after a flip, until Pass is clicked
 let questionMaster = null; // current Question Master (Q rule)
-let mates          = [];   // [[nameA, nameB], …] drinking-buddy pairs (8 rule)
-let crackThreshold = 4;    // hidden: which King number cracks the can (2–4)
-let tuckedKings    = [];   // King cards tucked under the tab, in draw order
+let mates          = [];   // [{master, mate}] — mate drinks when master drinks (8 rule)
+let tuckedCards    = [];   // cards tucked under the tab, in order
 let canCracked     = false;
-let justTucked     = false; // animate the newest tucked King on next render
+let justTucked     = false; // animate the newest tucked card on next render
 let crackTimer     = null;  // pending crack-sequence timeout
 
 // Circle dimensions (computed per viewport at startGame)
@@ -552,10 +580,11 @@ let CARD_H        = 70;
 
 // ── Build rules reference ──
 function buildRulesGrid() {
+  const kingExtra = crackMode === 'fourthking'
+    ? ` The player who draws the 4th King chugs the can.`
+    : ``;
   document.getElementById('rules-grid').innerHTML = Object.entries(KINGS_RULES).map(([v, r]) => {
-    const desc = v === 'K'
-      ? `${r.desc} Then tuck this King under the middle can's tab. A random King cracks the can — that player chugs the middle drink.`
-      : r.desc;
+    const desc = v === 'K' ? `${r.desc}${kingExtra}` : r.desc;
     return `<div class="kings-rule-item">
        <span class="kings-rule-value">${v}</span>
        <span class="kings-rule-text"><span class="kings-rule-name">${r.name}</span>${desc}</span>
@@ -600,11 +629,11 @@ function startGame() {
   ct.style.width  = CIRCLE_SIZE + 'px';
   ct.style.height = CIRCLE_SIZE + 'px';
 
-  cardPositions = shuffle(createDeck()).map(card => ({ card, drawn: false }));
+  cardPositions = shuffle(createDeck()).map(card => ({ card, drawn: false, tucked: false }));
   currentPlayer = 0; kingsDrawn = 0; houseRules = [];
   pendingKing = false; gameActive = true; lastDrawnIdx = -1; cardFlipped = false;
   questionMaster = null; mates = [];
-  crackThreshold = pickCrackThreshold(); tuckedKings = []; canCracked = false;
+  tuckedCards = []; canCracked = false;
   justTucked = false;
   clearTimeout(crackTimer);
   drawLog = [];
@@ -643,10 +672,11 @@ function renderCircle() {
   const midSize = CARD_W < 38 ? '0.72rem' : CARD_W < 46 ? '0.92rem' : '1.15rem';
   const pad     = CARD_W < 38 ? '2px 3px' : '3px 4px';
 
-  // Beer can HTML — side view, Kings fanned under the tab
-  const n = tuckedKings.length;
-  const tuckHTML = tuckedKings.map((c, i) => {
-    const rot = (i - (n - 1) / 2) * 16; // fan the tucked kings ~16° apart
+  // Beer can HTML — side view, cards fanned under the tab
+  const n = tuckedCards.length;
+  const spread = Math.min(80, n * 6);            // fan tightens as cards pile up
+  const tuckHTML = tuckedCards.map((c, i) => {
+    const rot = n <= 1 ? 0 : (i / (n - 1) - 0.5) * spread;
     const red = c.suit === '♥' || c.suit === '♦';
     const just = (justTucked && i === n - 1) ? ' just-tucked' : '';
     return `<div class="tk-rot" style="transform: rotate(${rot}deg);">
@@ -654,8 +684,8 @@ function renderCircle() {
     </div>`;
   }).join('');
 
-  // Tab bends further with each tucked King; on crack the CSS snap takes over
-  const tabBend = canCracked ? '' : `style="transform: rotate(-${4 + 7 * n}deg);"`;
+  // Tab bends further with each tucked card (capped) — visible strain
+  const tabBend = canCracked ? '' : `style="transform: rotate(-${Math.min(4 + 2 * n, 58)}deg);"`;
   const crackFX = canCracked
     ? `<div class="can-spray">${Array.from({ length: 12 }, () => {
         const dx = (Math.random() * 68 - 34).toFixed(0);
@@ -676,6 +706,14 @@ function renderCircle() {
   // Card slots
   cardPositions.forEach((pos, i) => {
     const angle     = (i / 52) * 360;
+    const slotStyle = `width:${CARD_W}px; height:${CARD_H}px; margin-left:${-halfW}px; margin-top:${-halfH}px; transform:rotate(${angle}deg) translateY(-${CIRCLE_RADIUS}px);`;
+
+    // Tucked into the can → the slot is now empty
+    if (pos.tucked) {
+      html += `<div class="cc-slot tucked-gone" style="${slotStyle}"><div class="slot-empty"></div></div>`;
+      return;
+    }
+
     const isUndrawn = !pos.drawn;
     const isJust    = i === lastDrawnIdx;
     const clickable = isUndrawn && gameActive && !cardFlipped;
@@ -689,8 +727,7 @@ function renderCircle() {
     const cardCls = pos.drawn ? (isJust ? 'flipped-reveal' : '') : '';
     const inner   = pos.drawn ? cardHTML(pos.card, cardCls) : cardHTML(null, cardCls);
 
-    html += `<div class="${cls}"
-      style="width:${CARD_W}px; height:${CARD_H}px; margin-left:${-halfW}px; margin-top:${-halfH}px; transform:rotate(${angle}deg) translateY(-${CIRCLE_RADIUS}px);"
+    html += `<div class="${cls}" style="${slotStyle}"
       ${clickable ? `onclick="flipCard(${i})"` : ''}>
       ${inner}
     </div>`;
@@ -735,38 +772,27 @@ function flipCard(i) {
 
   if (card.value === 'K') {
     kingsDrawn++;
-    tuckedKings.push(card);
     updateKingsDisplay();
 
-    if (kingsDrawn >= crackThreshold) {
-      // 💥 This King cracks the can — play the sequence: tuck → suspense → crack → overlay
-      gameActive = false;
+    // 4th-King mode: Kings tuck under the tab on draw; the 4th one cracks it.
+    if (crackMode === 'fourthking') {
+      cardPositions[i].tucked = true;
+      tuckedCards.push(card);
       justTucked = true;
-      renderCircle(); // final King visibly slides under the tab
+      renderCircle();
       justTucked = false;
-      document.getElementById('rule-name').textContent = `👑 King #${kingsDrawn} slides under the tab…`;
-      document.getElementById('rule-desc').textContent = "The tab is bending…";
-      addDrawLog('king', `💥 ${pName} tucked King #${kingsDrawn} — the can CRACKED! Chug the middle drink!`);
-
-      crackTimer = setTimeout(() => {
-        canCracked = true;
-        renderCircle(); // tab snaps, cards eject, spray + PSSSHT
-        document.getElementById('rule-name').textContent = '💥 THE CAN CRACKED!';
-        document.getElementById('rule-desc').textContent = `${pName} popped the tab — chug the middle drink! 🍺`;
-        document.getElementById('turn-sub').textContent  = '🍺 Game over!';
-        crackTimer = setTimeout(() => showCrackOverlay(pName), 1500);
-      }, 850);
-      return;
+      if (kingsDrawn >= 4) {
+        addDrawLog('king', `💥 ${pName} drew the 4th King — the can CRACKS!`);
+        crackCan(pName);
+        return;
+      }
     }
 
-    // Tab holds — tuck the King and make a house rule
-    addDrawLog('king', `🍺 ${pName} drew a King and tucked it under the tab (King #${kingsDrawn})`);
+    // Both modes: draw a King → make a house rule
+    addDrawLog('king', `👑 ${pName} drew a King (#${kingsDrawn}) — make a house rule`);
     pendingKing = true;
-    justTucked = true;
-    renderCircle(); // show the tucked King + disable card clicks
-    justTucked = false;
-    document.getElementById('turn-sub').textContent =
-      `😅 The tab held! ${kingsDrawn} King${kingsDrawn > 1 ? 's' : ''} tucked…`;
+    document.getElementById('turn-sub').textContent = `👑 ${pName} makes a house rule…`;
+    renderCircle(); // disable card clicks
     const rm = document.getElementById('rule-maker');
     rm.classList.remove('hidden');
     document.getElementById('rule-maker-title').textContent = `${pName}: Make a House Rule (King #${kingsDrawn})`;
@@ -790,12 +816,34 @@ function flipCard(i) {
   showPassButton();
 }
 
+// ── The can cracks: suspense beat → crack render → overlay ──
+function crackCan(pName) {
+  gameActive = false;
+  document.getElementById('rule-display').classList.remove('hidden');
+  document.getElementById('rule-drawn').textContent = '';
+  document.getElementById('rule-name').textContent  = '😳 The tab pops…';
+  document.getElementById('rule-desc').textContent  = 'The can is cracking…';
+  document.getElementById('turn-sub').textContent   = '🍺 Game over!';
+  document.getElementById('next-turn-btn').classList.add('hidden');
+  document.getElementById('rule-maker').classList.add('hidden');
+  document.getElementById('mate-picker').classList.add('hidden');
+
+  clearTimeout(crackTimer);
+  crackTimer = setTimeout(() => {
+    canCracked = true;
+    renderCircle(); // tab snaps, cards eject, spray + PSSSHT, shake
+    document.getElementById('rule-name').textContent = '💥 THE CAN CRACKED!';
+    document.getElementById('rule-desc').textContent = `${pName} popped the tab — chug the whole can! 🍺`;
+    crackTimer = setTimeout(() => showCrackOverlay(pName), 1500);
+  }, 700);
+}
+
 // ── Can-crack overlay ──
 function showCrackOverlay(pName) {
   document.getElementById('ko-icon').textContent  = '💥';
   document.getElementById('ko-title').textContent = 'THE CAN CRACKED!';
   document.getElementById('ko-desc').textContent =
-    `${pName} popped the tab on King #${kingsDrawn} — chug the middle drink! 🍺`;
+    `${pName} popped the tab after ${tuckedCards.length} card${tuckedCards.length !== 1 ? 's' : ''} — chug the whole can! 🍺`;
   const confetti = document.getElementById('king-confetti');
   const emojis = ['🍺', '💥', '🎉', '✨', '👑'];
   confetti.innerHTML = Array.from({ length: 28 }, () => {
@@ -827,41 +875,22 @@ function showMatePicker() {
 }
 
 function pickMate(i) {
-  mates.push([players[currentPlayer].name, players[i].name]);
+  // Directional: the picked mate drinks when the picker drinks — NOT the reverse.
+  const master = players[currentPlayer].name;
+  const mate   = players[i].name;
+  mates.push({ master, mate });
   document.getElementById('mate-picker').classList.add('hidden');
   updateRoles();
-  addDrawLog('role', `🤝 ${players[currentPlayer].name} and ${players[i].name} are now mates`);
+  addDrawLog('role', `🤝 ${mate} now drinks whenever ${master} drinks`);
   showPassButton();
-}
-
-// Merge mate pairs into chains: A↔B + B↔C → A↔B↔C (all drink together)
-function mateChains() {
-  const chains = [];
-  mates.forEach(([a, b]) => {
-    const ca = chains.find(c => c.includes(a));
-    const cb = chains.find(c => c.includes(b));
-    if (ca && cb && ca !== cb) {
-      ca.push(...cb);
-      chains.splice(chains.indexOf(cb), 1);
-    } else if (ca) {
-      if (!ca.includes(b)) ca.push(b);
-    } else if (cb) {
-      if (!cb.includes(a)) cb.push(a);
-    } else {
-      chains.push([a, b]);
-    }
-  });
-  return chains;
 }
 
 function updateRoles() {
   const banner = document.getElementById('roles-banner');
   const lines = [];
   if (questionMaster) lines.push(`<div class="rule-row">❓ Question Master: <strong>${questionMaster}</strong></div>`);
-  mateChains().forEach(chain => {
-    const label = chain.map(n => `<strong>${n}</strong>`).join(' ↔ ');
-    const suffix = chain.length > 2 ? ' — chain! One drinks, all drink' : '';
-    lines.push(`<div class="rule-row">🤝 Mates: ${label}${suffix}</div>`);
+  mates.forEach(m => {
+    lines.push(`<div class="rule-row">🤝 <strong>${m.mate}</strong> drinks whenever <strong>${m.master}</strong> drinks</div>`);
   });
   if (lines.length) {
     banner.classList.remove('hidden');
@@ -882,18 +911,47 @@ function addRule() {
   renderCircle();
   addDrawLog('king', `👑 New house rule: ${val}`);
   showPassButton();
+  // scroll up so the board + can are back in view before passing
+  document.getElementById('circle-table').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function showPassButton() {
   const nextName = players[(currentPlayer + 1) % players.length].name;
   const btn = document.getElementById('next-turn-btn');
-  btn.textContent = `Pass to ${nextName} →`;
+  btn.textContent = crackMode === 'random'
+    ? `🍺 Put Card in Can & Pass to ${nextName} →`
+    : `Pass to ${nextName} →`;
   btn.classList.remove('hidden');
   revealEl('next-turn-btn');
 }
 
-// ── Advance to next player ──
+// ── Pass: (random mode) tuck the drawn card & maybe crack, then next player ──
 function advanceTurn() {
+  if (!gameActive) return;
+
+  // Random mode — the drawn card goes into the can tab; roll for a crack
+  if (crackMode === 'random' && lastDrawnIdx >= 0 && !cardPositions[lastDrawnIdx].tucked) {
+    const idx = lastDrawnIdx;
+    cardPositions[idx].tucked = true;
+    tuckedCards.push(cardPositions[idx].card);
+    const passer = players[currentPlayer].name;
+
+    document.getElementById('next-turn-btn').classList.add('hidden');
+    document.getElementById('rule-maker').classList.add('hidden');
+    document.getElementById('mate-picker').classList.add('hidden');
+    justTucked = true;
+    renderCircle(); // card slides into the can, tab bends
+    justTucked = false;
+
+    const N = tuckedCards.length;
+    if (N >= 52 || Math.random() < N / 52) {
+      addDrawLog('king', `💥 ${passer}'s card was #${N} in the can — it CRACKED!`);
+      crackCan(passer);
+      return;
+    }
+    addDrawLog('', `🍺 ${passer} put their card in the can (${N} in — tab held)`);
+  }
+
   currentPlayer = (currentPlayer + 1) % players.length;
   lastDrawnIdx  = -1;
   cardFlipped   = false;
@@ -904,8 +962,8 @@ function advanceTurn() {
   renderCircle();
   revealEl('circle-table');
 
-  // All cards drawn?
-  if (cardPositions.every(p => p.drawn)) {
+  // All cards used up (only reachable in 4th-King mode if somehow no crack)?
+  if (cardPositions.every(p => p.drawn || p.tucked)) {
     document.getElementById('rule-display').classList.remove('hidden');
     document.getElementById('rule-drawn').textContent = '';
     document.getElementById('rule-name').textContent  = '🎉 All 52 cards drawn!';
@@ -952,7 +1010,7 @@ function resetGame() {
   document.getElementById('setup-panel').classList.remove('hidden');
 }
 
-buildRulesGrid();
+setCrackMode(crackMode); // initialises the toggle, help text, and rules grid
 restoreRoster();
 </script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
