@@ -147,6 +147,39 @@
       pointer-events: none;
     }
 
+    /* All 4 of a rank dealt: grayed out and unpickable */
+    .rank-col.rank-done {
+      opacity: 0.34;
+      pointer-events: none;
+      filter: grayscale(0.6);
+    }
+
+    /* ── Overlays (deck empty + stats) ── */
+    .ftd-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(6px);
+      padding: 24px;
+    }
+    .ftd-modal {
+      background: var(--surface); border: 2px solid var(--border);
+      border-radius: 16px; padding: 34px 40px; text-align: center;
+      max-width: 560px; width: 100%;
+    }
+    .ftd-modal.chug { border-color: var(--gold); box-shadow: 0 0 50px rgba(240,180,41,0.3); }
+    .ftd-modal-icon { font-size: 3.6rem; line-height: 1; margin-bottom: 10px; }
+    .ftd-modal-title { font-size: 1.9rem; font-weight: 900; color: var(--gold); margin-bottom: 10px; letter-spacing: -0.5px; }
+    .ftd-modal-desc { color: var(--text); font-size: 1rem; line-height: 1.55; margin-bottom: 24px; }
+    .ftd-modal-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    .ftd-stats-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .ftd-stats-table th, .ftd-stats-table td {
+      padding: 7px 6px; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .ftd-stats-table th { color: var(--muted); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.2px; }
+    .ftd-stats-table td:first-child, .ftd-stats-table th:first-child { text-align: left; font-weight: 700; }
+    .ftd-stats-table tbody tr:last-child td { border-bottom: none; }
+
     /* Just-guessed: highlight the column that was picked */
     .rank-col.just-guessed {
       outline: 2px solid var(--gold);
@@ -255,11 +288,6 @@
           <div id="outcome-desc"></div>
         </div>
 
-        <div class="notif chug hidden" id="chug-banner">
-          <div class="notif-title">🍺 DECK EMPTY — DEALER CHUGS!</div>
-          <div id="chug-desc"></div>
-        </div>
-
         <div class="mt-16 hidden" id="next-btn-area">
           <button class="btn btn-gold btn-lg w-full" onclick="nextTurn()">Next Player →</button>
         </div>
@@ -275,6 +303,32 @@
         </div>
         <button class="btn btn-ghost w-full" onclick="resetGame()">New Game</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Deck-empty popup -->
+<div class="ftd-overlay hidden" id="deck-empty-overlay">
+  <div class="ftd-modal chug">
+    <div class="ftd-modal-icon">🍺</div>
+    <div class="ftd-modal-title">DECK EMPTY!</div>
+    <div class="ftd-modal-desc" id="deck-empty-desc"></div>
+    <div class="ftd-modal-btns">
+      <button class="btn btn-surface btn-lg" onclick="showStats()">📊 Stats</button>
+      <button class="btn btn-gold btn-lg" onclick="resetGame()">New Game</button>
+      <a class="btn btn-ghost btn-lg" href="index.html">🏠 Home</a>
+    </div>
+  </div>
+</div>
+
+<!-- Stats popup -->
+<div class="ftd-overlay hidden" id="stats-overlay">
+  <div class="ftd-modal">
+    <div class="ftd-modal-title" style="font-size:1.5rem;">📊 Game Stats</div>
+    <div id="ftd-stats-body" style="text-align:left; margin-top:8px;"></div>
+    <div class="ftd-modal-btns mt-16">
+      <button class="btn btn-ghost" onclick="hideStats()">← Back</button>
+      <button class="btn btn-gold" onclick="resetGame()">New Game</button>
     </div>
   </div>
 </div>
@@ -295,6 +349,8 @@ let drawnCards  = [];
 let lastDrawnCard = null;
 let justGuessedRank = null; // column to highlight after a guess
 let deckExhausted = false;
+let cardsDealt = 0;         // total cards drawn this game (stats)
+let gameOver = false;
 
 const RANK_ORDER = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 
@@ -337,6 +393,7 @@ function renderCardBoard() {
       }
     }
 
+    if (allGone) cls += ' rank-done';
     if (rank === justGuessedRank) cls += ' just-guessed';
 
     // Card stack
@@ -370,14 +427,19 @@ function isExcluded(value, { direction, firstRank }) {
 // ── Setup ──
 function startGame() {
   const names = readPlayerNames();
-  players = names.map(name => ({ name }));
+  players = names.map(name => ({ name, stats: {
+    guesses: 0, firstCorrect: 0, firstWrong: 0, secondCorrect: 0, secondWrong: 0, dealerTurns: 0
+  } }));
   if (players.length < 2) { alert('Need at least 2 players.'); return; }
   saveRoster(names);
 
   deck = shuffle(createDeck());
   dealerIdx = 0; guesserIdx = 1; streak = 0;
   logEntries = []; drawnCards = []; lastDrawnCard = null;
+  cardsDealt = 0; deckExhausted = false; gameOver = false;
 
+  document.getElementById('deck-empty-overlay').classList.add('hidden');
+  document.getElementById('stats-overlay').classList.add('hidden');
   document.getElementById('setup-panel').classList.add('hidden');
   document.getElementById('game-area').classList.remove('hidden');
   renderCardBoard();
@@ -393,7 +455,6 @@ function beginTurn() {
   lastDrawnCard = null;
 
   document.getElementById('outcome-box').classList.add('hidden');
-  document.getElementById('chug-banner').classList.add('hidden');
   document.getElementById('next-btn-area').classList.add('hidden');
 
   document.getElementById('stat-cards').textContent  = deck.length;
@@ -417,6 +478,7 @@ function onFirstGuess(rank) {
   if (phase !== 'first' || !deck.length) return;
 
   currentCard = deck.pop();
+  cardsDealt++;
   deckExhausted = deck.length === 0;
   firstGuess  = rank;
   justGuessedRank = rank;
@@ -425,6 +487,9 @@ function onFirstGuess(rank) {
 
   if (rank === currentCard.value) {
     // ✅ Correct 1st guess — reveal card now, streak resets
+    players[guesserIdx].stats.guesses++;
+    players[guesserIdx].stats.firstCorrect++;
+    players[dealerIdx].stats.dealerTurns++;
     streak = 0;
     updateStreakDisplay();
     phase = 'done';
@@ -436,10 +501,13 @@ function onFirstGuess(rank) {
     addLog('correct', `${players[guesserIdx].name} guessed ${rank} — correct! Dealer drinks 3.`);
     showChugIfNeeded();
     setBoardInstruction('');
-    document.getElementById('next-btn-area').classList.remove('hidden');
-    revealEl('next-btn-area');
+    if (!gameOver) {
+      document.getElementById('next-btn-area').classList.remove('hidden');
+      revealEl('next-btn-area');
+    }
   } else {
     // ❌ Wrong 1st guess — show hint, wait for 2nd (don't reveal card yet)
+    players[guesserIdx].stats.firstWrong++;
     const dir = ftdRank(currentCard.value) > ftdRank(rank) ? 'higher' : 'lower';
     secondGuessConstraint = { direction: dir, firstRank: ftdRank(rank) };
     phase = 'second';
@@ -449,7 +517,8 @@ function onFirstGuess(rank) {
     const hintMode = dir === 'higher' ? 'hint-higher' : 'hint-lower';
     setBoardInstruction(hintText, hintMode);
     addLog('wrong', `${players[guesserIdx].name} guessed ${rank} — wrong. Hint: ${dir.toUpperCase()}`);
-    showChugIfNeeded(); // banner appears the moment the last card is drawn, on either path
+    // note: don't end the game here even if that was the last card — the player still
+    // owes a 2nd guess. The deck-empty popup fires when the turn fully resolves.
   }
 }
 
@@ -464,14 +533,19 @@ function onSecondGuess(rank) {
   renderCardBoard();
   setBoardInstruction('');
 
+  players[guesserIdx].stats.guesses++;
+  players[dealerIdx].stats.dealerTurns++;
+
   if (rank === currentCard.value) {
     // ✅ Correct 2nd guess — streak resets
+    players[guesserIdx].stats.secondCorrect++;
     streak = 0;
     updateStreakDisplay();
     showOutcome('success', '✅ Correct on 2nd try!', `${players[dealerIdx].name} drinks 1.`);
     addLog('correct', `${players[guesserIdx].name} guessed ${rank} on 2nd try — dealer drinks 1.`);
   } else {
     // ❌ Wrong 2nd guess — both guesses missed, streak advances
+    players[guesserIdx].stats.secondWrong++;
     streak++;
     updateStreakDisplay();
     const diff = Math.abs(ftdRank(currentCard.value) - ftdRank(rank));
@@ -485,12 +559,15 @@ function onSecondGuess(rank) {
   }
 
   showChugIfNeeded();
-  document.getElementById('next-btn-area').classList.remove('hidden');
-  revealEl('next-btn-area');
+  if (!gameOver) {
+    document.getElementById('next-btn-area').classList.remove('hidden');
+    revealEl('next-btn-area');
+  }
 }
 
 // ── Advance ──
 function nextTurn() {
+  if (gameOver) return;
   if (streak >= 3) {
     dealerIdx  = (dealerIdx + 1) % players.length;
     streak     = 0;
@@ -500,27 +577,59 @@ function nextTurn() {
     do { guesserIdx = (guesserIdx + 1) % players.length; }
     while (guesserIdx === dealerIdx);
   }
-
-  if (deck.length === 0) {
-    deck = shuffle(createDeck());
-    drawnCards = [];
-    deckExhausted = false;
-    addLog('dealer-drinks', 'Deck reshuffled — board cleared.');
-  }
-
   beginTurn();
 }
 
+// Deck ran out → dealer chugs, game over → popup with Stats / New Game / Home
 function showChugIfNeeded() {
-  const banner = document.getElementById('chug-banner');
-  if (deckExhausted) {
-    document.getElementById('chug-desc').textContent =
-      `${players[dealerIdx].name} must finish their drink — the deck is empty!`;
-    banner.classList.remove('hidden');
-    addLog('dealer-drinks', `🍺 Deck empty — ${players[dealerIdx].name} chugs!`);
-  } else {
-    banner.classList.add('hidden');
-  }
+  if (!deckExhausted) return;
+  gameOver = true;
+  document.getElementById('next-btn-area').classList.add('hidden');
+  document.getElementById('deck-empty-desc').innerHTML =
+    `Every card has been dealt.<br><strong>${players[dealerIdx].name}</strong> is the dealer — chug the rest of your drink! 🍺`;
+  addLog('dealer-drinks', `🍺 Deck empty — ${players[dealerIdx].name} chugs! Game over.`);
+  document.getElementById('deck-empty-overlay').classList.remove('hidden');
+}
+
+// ── Stats ──
+function showStats() {
+  const rows = players.map(p => {
+    const s = p.stats;
+    const correct = s.firstCorrect + s.secondCorrect;
+    const acc = s.guesses ? Math.round(correct / s.guesses * 100) : 0;
+    return `<tr>
+      <td>${p.name}</td>
+      <td>${s.dealerTurns}</td>
+      <td>${s.guesses}</td>
+      <td style="color:var(--green)">${correct}</td>
+      <td>${acc}%</td>
+      <td>${s.firstCorrect}/${s.firstWrong}</td>
+      <td>${s.secondCorrect}/${s.secondWrong}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('ftd-stats-body').innerHTML = `
+    <div style="text-align:center; color:var(--muted); font-size:0.85rem; margin-bottom:12px;">
+      <strong style="color:var(--gold); font-size:1.1rem;">${cardsDealt}</strong> cards dealt this game
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="ftd-stats-table">
+        <thead><tr>
+          <th>Player</th><th>Dealt</th><th>Guesses</th><th>Correct</th><th>Acc</th>
+          <th>1st&nbsp;✓/✗</th><th>2nd&nbsp;✓/✗</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  document.getElementById('deck-empty-overlay').classList.add('hidden');
+  document.getElementById('stats-overlay').classList.remove('hidden');
+}
+
+function hideStats() {
+  document.getElementById('stats-overlay').classList.add('hidden');
+  // return to the deck-empty popup if the game is over, else just close
+  if (gameOver) document.getElementById('deck-empty-overlay').classList.remove('hidden');
 }
 
 function showOutcome(type, title, desc) {
@@ -538,6 +647,8 @@ function addLog(type, msg) {
 }
 
 function resetGame() {
+  document.getElementById('deck-empty-overlay').classList.add('hidden');
+  document.getElementById('stats-overlay').classList.add('hidden');
   document.getElementById('setup-panel').classList.remove('hidden');
   document.getElementById('game-area').classList.add('hidden');
 }
