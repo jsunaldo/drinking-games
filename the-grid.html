@@ -390,6 +390,7 @@
         <div class="mt-16 flex gap-8" style="justify-content:center;">
           <button class="btn btn-gold btn-lg hidden" id="next-turn-btn" onclick="advanceTurn()">Next Player →</button>
           <button class="btn btn-ghost" onclick="resetGame()">New Game</button>
+          <a class="btn btn-ghost" href="index.html">🏠 Home</a>
         </div>
       </div>
 
@@ -426,6 +427,7 @@
     <div class="flex gap-8" style="justify-content:center; flex-wrap:wrap;">
       <button class="btn btn-surface btn-lg" onclick="showStats()">📊 Stats</button>
       <button class="btn btn-gold btn-lg" onclick="resetGame()">Play Again</button>
+      <a class="btn btn-ghost btn-lg" href="index.html">🏠 Home</a>
     </div>
   </div>
 </div>
@@ -435,9 +437,10 @@
   <div class="end-card" style="max-width:560px; text-align:left;">
     <div class="end-title" style="font-size:1.5rem; text-align:center; color:var(--gold); margin-bottom:16px;">📊 Game Stats</div>
     <div id="stats-body"></div>
-    <div class="flex gap-8 mt-16" style="justify-content:center;">
+    <div class="flex gap-8 mt-16" style="justify-content:center; flex-wrap:wrap;">
       <button class="btn btn-ghost" onclick="hideStats()">← Back</button>
       <button class="btn btn-gold" onclick="resetGame()">Play Again</button>
+      <a class="btn btn-ghost" href="index.html">🏠 Home</a>
     </div>
   </div>
 </div>
@@ -584,6 +587,13 @@ function setInstruction(html, mode = '') {
 // ─── Interaction ───
 function handlePileClick(i) {
   if (!gameActive || animating) return;
+
+  // If the previous turn is resolved and just waiting for "Next Player",
+  // clicking a pile means the next player is going — auto-pass first.
+  if (!pendingUnflip && selectedPile === -1 &&
+      !document.getElementById('next-turn-btn').classList.contains('hidden')) {
+    advanceTurn();
+  }
 
   // Unflip mode: clicking a face-down pile restores it
   if (pendingUnflip) {

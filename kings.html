@@ -65,6 +65,23 @@
       border-radius: 4px;
     }
 
+    /* ── Rule / mate modals (no scrolling needed) ── */
+    .kings-overlay {
+      position: fixed; inset: 0; z-index: 210;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.8); backdrop-filter: blur(6px);
+      padding: 22px;
+    }
+    .kings-modal {
+      background: var(--surface); border: 2px solid var(--gold);
+      border-radius: 16px; padding: 24px; max-width: 460px; width: 100%;
+      box-shadow: 0 0 50px rgba(0,0,0,0.5);
+      animation: pageIn 0.25s var(--ease, ease) both;
+    }
+    .kings-modal .panel-title { text-align: center; }
+    /* bigger, clearer mate buttons */
+    #mate-buttons .btn { font-size: 1rem; padding: 12px 20px; }
+
     /* ── Circle table ── */
     .circle-table-outer { display: flex; justify-content: center; margin: 0 0 18px; }
     .circle-table {
@@ -441,27 +458,32 @@
       <div class="rule-desc-text" id="rule-desc"></div>
     </div>
 
-    <!-- King: enter house rule -->
-    <div class="panel hidden" id="rule-maker">
-      <div class="panel-title" id="rule-maker-title">Make a House Rule</div>
-      <div class="flex gap-8">
-        <input class="form-input" id="rule-input" placeholder="Type your own rule…"/>
-        <button class="btn btn-primary" onclick="addRule()">Add Rule</button>
+    <!-- King: enter house rule (modal) -->
+    <div class="kings-overlay hidden" id="rule-maker">
+      <div class="kings-modal">
+        <div class="panel-title" id="rule-maker-title">Make a House Rule</div>
+        <div class="flex gap-8">
+          <input class="form-input" id="rule-input" placeholder="Type your own rule…"/>
+          <button class="btn btn-primary" onclick="addRule()">Add Rule</button>
+        </div>
+        <div class="rule-sug-label">…or tap a suggestion</div>
+        <div class="rule-suggestions" id="rule-suggestions"></div>
       </div>
-      <div class="rule-sug-label">…or tap a suggestion</div>
-      <div class="rule-suggestions" id="rule-suggestions"></div>
     </div>
 
-    <!-- 8: pick a mate -->
-    <div class="panel hidden" id="mate-picker">
-      <div class="panel-title" id="mate-picker-title">Pick Your Mate</div>
-      <div class="flex gap-8 flex-wrap" id="mate-buttons"></div>
+    <!-- 8: pick a mate (modal) -->
+    <div class="kings-overlay hidden" id="mate-picker">
+      <div class="kings-modal">
+        <div class="panel-title" id="mate-picker-title">Pick Your Mate</div>
+        <div class="flex gap-8 flex-wrap" id="mate-buttons" style="justify-content:center;"></div>
+      </div>
     </div>
 
     <!-- Buttons -->
-    <div class="flex gap-12 items-center" style="justify-content:center; margin: 8px 0 24px;">
+    <div class="flex gap-12 items-center" style="justify-content:center; margin: 8px 0 24px; flex-wrap:wrap;">
       <button class="btn btn-gold btn-lg hidden" id="next-turn-btn" onclick="advanceTurn()"></button>
       <button class="btn btn-ghost" onclick="resetGame()">New Game</button>
+      <a class="btn btn-ghost" href="index.html">🏠 Home</a>
     </div>
 
     <!-- Draw history -->
@@ -482,7 +504,11 @@
     <div class="ko-icon" id="ko-icon">💥</div>
     <div class="ko-title" id="ko-title">THE CAN CRACKED!</div>
     <div class="ko-desc" id="ko-desc"></div>
-    <button class="btn btn-gold btn-lg" onclick="dismissKingOverlay()">🍻 Done!</button>
+    <div class="flex gap-8" style="justify-content:center; flex-wrap:wrap;">
+      <button class="btn btn-gold btn-lg" id="ko-continue" onclick="continueAfterCrack()">🍺 Keep Playing</button>
+      <button class="btn btn-surface btn-lg" onclick="resetGame()">New Game</button>
+      <a class="btn btn-ghost btn-lg" href="index.html">🏠 Home</a>
+    </div>
   </div>
 </div>
 
@@ -748,7 +774,19 @@ function renderCircle() {
 
 // ── Flip a card ──
 function flipCard(i) {
-  if (!gameActive || cardFlipped || cardPositions[i].drawn) return;
+  if (!gameActive || cardPositions[i].drawn || cardPositions[i].tucked) return;
+
+  // A card is already flipped but not yet passed. If the turn is fully resolved
+  // (pass button showing — no rule/mate pending), clicking a new card means the
+  // next player is going: auto-pass the current card into the can first.
+  if (cardFlipped) {
+    const passReady = !document.getElementById('next-turn-btn').classList.contains('hidden');
+    if (!passReady) return; // a rule or mate is still pending — ignore card clicks
+    advanceTurn();          // puts the card in the can (random mode) & maybe cracks
+    if (!gameActive) return; // the can cracked — don't reveal the clicked card
+    if (cardPositions[i].drawn || cardPositions[i].tucked) return; // safety
+  }
+
   cardFlipped = true;
 
   cardPositions[i].drawn = true;
@@ -798,7 +836,6 @@ function flipCard(i) {
     document.getElementById('rule-maker-title').textContent = `${pName}: Make a House Rule (King #${kingsDrawn})`;
     document.getElementById('rule-input').value = '';
     renderRuleSuggestions();
-    revealEl('rule-maker');
     setTimeout(() => document.getElementById('rule-input').focus(), 80);
     return;
   }
@@ -853,12 +890,43 @@ function showCrackOverlay(pName) {
     const dur = 1.8 + Math.random() * 1.6;
     return `<span style="left:${left}%; animation-duration:${dur}s; animation-delay:${delay}s;">${e}</span>`;
   }).join('');
+  // Only offer "Keep Playing" if there are cards left to draw
+  const cardsLeft = cardPositions.some(p => !p.drawn && !p.tucked);
+  document.getElementById('ko-continue').classList.toggle('hidden', !cardsLeft);
   document.getElementById('king-overlay').classList.remove('hidden');
 }
 
 function dismissKingOverlay() {
   document.getElementById('king-overlay').classList.add('hidden');
   document.getElementById('king-confetti').innerHTML = '';
+}
+
+// Continue after a crack: fresh can, keep the remaining cards, next player up
+function continueAfterCrack() {
+  clearTimeout(crackTimer);
+  dismissKingOverlay();
+  tuckedCards = [];
+  canCracked = false;
+  kingsDrawn = 0; // fresh can → 4th-King mode counts from zero again
+  for (let i = 0; i < 4; i++) {
+    const s = document.getElementById(`ks-${i}`);
+    s.classList.remove('filled'); s.textContent = '♛';
+  }
+  gameActive = true;
+  currentPlayer = (currentPlayer + 1) % players.length;
+  lastDrawnIdx = -1;
+  cardFlipped = false;
+  document.getElementById('rule-display').classList.add('hidden');
+  document.getElementById('next-turn-btn').classList.add('hidden');
+  updateTurnDisplay();
+  renderCircle();
+
+  if (cardPositions.every(p => p.drawn || p.tucked)) {
+    document.getElementById('rule-display').classList.remove('hidden');
+    document.getElementById('rule-name').textContent = '🎉 All 52 cards used!';
+    document.getElementById('rule-desc').textContent = 'The deck is empty — good game!';
+    gameActive = false;
+  }
 }
 
 // ── Mate picker (8 rule) ──
@@ -869,9 +937,8 @@ function showMatePicker() {
     `${players[currentPlayer].name}: Pick Your Mate 🤝`;
   document.getElementById('mate-buttons').innerHTML = players
     .map((p, i) => i === currentPlayer ? '' :
-      `<button class="btn btn-surface btn-sm" onclick="pickMate(${i})">${p.name}</button>`)
+      `<button class="btn btn-surface" onclick="pickMate(${i})">${p.name}</button>`)
     .join('');
-  revealEl('mate-picker');
 }
 
 function pickMate(i) {
@@ -911,8 +978,6 @@ function addRule() {
   renderCircle();
   addDrawLog('king', `👑 New house rule: ${val}`);
   showPassButton();
-  // scroll up so the board + can are back in view before passing
-  document.getElementById('circle-table').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function showPassButton() {

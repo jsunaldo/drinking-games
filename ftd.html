@@ -301,7 +301,10 @@
             <div class="text-muted text-sm">No rounds yet…</div>
           </div>
         </div>
-        <button class="btn btn-ghost w-full" onclick="resetGame()">New Game</button>
+        <div class="flex gap-8" style="margin-top:8px;">
+          <button class="btn btn-ghost w-full" onclick="resetGame()">New Game</button>
+          <a class="btn btn-ghost" href="index.html">🏠 Home</a>
+        </div>
       </div>
     </div>
   </div>
@@ -329,6 +332,7 @@
     <div class="ftd-modal-btns mt-16">
       <button class="btn btn-ghost" onclick="hideStats()">← Back</button>
       <button class="btn btn-gold" onclick="resetGame()">New Game</button>
+      <a class="btn btn-ghost" href="index.html">🏠 Home</a>
     </div>
   </div>
 </div>
@@ -378,7 +382,8 @@ function renderCardBoard() {
     let cls = 'rank-col';
     let handler = '';
 
-    if (phase === 'first' && !allGone) {
+    if ((phase === 'first' || phase === 'done') && !allGone && !gameOver) {
+      // 'done' = previous turn resolved; clicking a rank auto-advances to the next turn
       cls += ' clickable';
       handler = `onclick="onFirstGuess('${rank}')"`;
     } else if (phase === 'second') {
@@ -475,6 +480,9 @@ function beginTurn() {
 
 // ── Guessing ──
 function onFirstGuess(rank) {
+  // If the previous turn is resolved and just waiting for "Next Player",
+  // clicking a rank means the next player is going — auto-advance first.
+  if (phase === 'done' && !gameOver && deck.length) nextTurn();
   if (phase !== 'first' || !deck.length) return;
 
   currentCard = deck.pop();
