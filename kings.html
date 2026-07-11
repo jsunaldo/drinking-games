@@ -642,6 +642,7 @@ function startGame() {
   players = names.map(name => ({ name }));
   if (players.length < 2) { alert('Need at least 2 players.'); return; }
   saveRoster(names);
+  ensureAudio(); // unlock audio here — the earliest guaranteed user gesture
 
   // Responsive circle sizing
   const avail = Math.min(window.innerWidth - 48, 520);
@@ -853,39 +854,65 @@ function flipCard(i) {
 
 // ── Crack sound (Web Audio — no file, works offline) ──
 let audioCtx = null;
+let audioUnlocked = false;
 function ensureAudio() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    // iOS only truly unlocks audio if a sound actually plays DURING a user
+    // gesture — resume() alone isn't enough. Play a 1-frame silent buffer.
+    if (!audioUnlocked) {
+      const b = audioCtx.createBuffer(1, 1, 22050);
+      const s = audioCtx.createBufferSource();
+      s.buffer = b; s.connect(audioCtx.destination); s.start(0);
+      audioUnlocked = true;
+    }
   } catch (e) {}
 }
 function playCrackSound() {
   if (!audioCtx) return;
   try {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const now = audioCtx.currentTime;
+    const master = audioCtx.createGain();
+    master.gain.value = 0.9;
+    master.connect(audioCtx.destination);
+
+    // low "thunk" — the metal give
+    const thunk = audioCtx.createOscillator();
+    thunk.type = 'sine';
+    thunk.frequency.setValueAtTime(160, now);
+    thunk.frequency.exponentialRampToValueAtTime(45, now + 0.14);
+    const tg = audioCtx.createGain();
+    tg.gain.setValueAtTime(0.9, now);
+    tg.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    thunk.connect(tg).connect(master);
+    thunk.start(now); thunk.stop(now + 0.2);
+
     // sharp "crack" click
     const osc = audioCtx.createOscillator();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(200, now);
-    osc.frequency.exponentialRampToValueAtTime(40, now + 0.09);
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(50, now + 0.08);
     const og = audioCtx.createGain();
-    og.gain.setValueAtTime(0.45, now);
-    og.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-    osc.connect(og).connect(audioCtx.destination);
-    osc.start(now); osc.stop(now + 0.14);
-    // fizzy "psssht" — decaying high-passed noise
-    const dur = 0.85;
+    og.gain.setValueAtTime(0.7, now);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    osc.connect(og).connect(master);
+    osc.start(now); osc.stop(now + 0.13);
+
+    // fizzy "psssht" — decaying band-passed noise (the spray)
+    const dur = 1.0;
     const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
     const data = buf.getChannelData(0);
     for (let k = 0; k < data.length; k++) {
       const t = k / data.length;
-      data[k] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.8);
+      data[k] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.5);
     }
     const noise = audioCtx.createBufferSource(); noise.buffer = buf;
-    const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1400;
-    const ng = audioCtx.createGain(); ng.gain.value = 0.5;
-    noise.connect(hp).connect(ng).connect(audioCtx.destination);
-    noise.start(now + 0.02); noise.stop(now + dur);
+    const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 0.7;
+    const ng = audioCtx.createGain(); ng.gain.value = 0.8;
+    noise.connect(bp).connect(ng).connect(master);
+    noise.start(now + 0.03); noise.stop(now + dur);
   } catch (e) {}
 }
 
