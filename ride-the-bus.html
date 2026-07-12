@@ -113,6 +113,25 @@
       margin-bottom: 4px;
       font-weight: 700;
     }
+    /* Spotlight the card that was just flipped, and celebrate a match on the pyramid */
+    .pyr-cell .card { transition: box-shadow 0.2s; }
+    .pyr-cell.active .card { box-shadow: 0 0 0 3px var(--gold), 0 0 16px rgba(240,180,41,0.65); }
+    .pyr-cell.match .card {
+      box-shadow: 0 0 0 3px var(--green), 0 0 26px rgba(46,204,113,0.9);
+      animation: pyrMatchPulse 0.55s ease-in-out infinite alternate;
+    }
+    .pyr-match-flag {
+      position: absolute; left: 50%; bottom: -17px; transform: translateX(-50%);
+      background: var(--green); color: #06231a;
+      font-size: 0.62rem; font-weight: 900; letter-spacing: 0.4px;
+      border-radius: 8px; padding: 2px 7px; white-space: nowrap;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.45); z-index: 10;
+      animation: pyrFlagPop 0.32s cubic-bezier(.2,1.5,.4,1) both,
+                 pyrFlagBounce 0.6s 0.32s ease-in-out infinite alternate;
+    }
+    @keyframes pyrMatchPulse { from { transform: scale(1); } to { transform: scale(1.09) translateY(-3px); } }
+    @keyframes pyrFlagPop { from { transform: translateX(-50%) scale(0.3); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+    @keyframes pyrFlagBounce { from { transform: translateX(-50%) translateY(0); } to { transform: translateX(-50%) translateY(-3px); } }
 
     /* Phase 3 */
     .bus-rider-display {
@@ -805,11 +824,15 @@ function renderPyramid() {
       <div class="pyr-row-wrap">
         <div class="pyr-row-label" style="${PYR_ROWS[ri] === 4 ? 'color:var(--accent)' : ''}">${PYR_ROWS[ri] === 4 ? `⬇ ${drinks} drinks — TAKE` : `${drinks} drink${drinks > 1 ? 's' : ''} — GIVE`}</div>
         <div class="pyr-row">
-          ${row.map(cell => {
+          ${row.map((cell, ci) => {
             if (!cell.flipped) return `<div class="pyr-cell">${cardHTML(null, 'sm')}</div>`;
             const tc = topCard(cell);
             const badge = cell.stack.length ? `<div style="position:absolute;top:-6px;right:-4px;background:var(--accent);color:#fff;font-size:0.55rem;font-weight:800;border-radius:8px;padding:1px 4px;">+${cell.stack.length}</div>` : '';
-            return `<div class="pyr-cell" style="position:relative;">${cardHTML(tc, 'sm just-flipped')}${badge}</div>`;
+            const isActive = ri === pyrRow && ci === pyrCol;
+            const isMatch = isActive && pyrMatchValue !== null;
+            const flag = isMatch ? `<div class="pyr-match-flag">🍺 MATCH!</div>` : '';
+            const cls = 'pyr-cell' + (isActive ? (isMatch ? ' active match' : ' active') : '');
+            return `<div class="${cls}" style="position:relative;">${cardHTML(tc, 'sm just-flipped')}${badge}${flag}</div>`;
           }).join('')}
         </div>
       </div>`;
@@ -859,13 +882,14 @@ function flipPyramidCard() {
     return;
   }
 
-  // Match → let the flipped card sit on the pyramid a beat, THEN pop the result
+  // Match → the flipped card gets a green MATCH! flag on the pyramid; let it
+  // play for ~1.3s so you can see WHICH card matched before the popup opens.
   pyrAdvancing = true;
   const ep = p2Epoch;
   setTimeout(() => {
     if (ep !== p2Epoch) return; // new game / phase change — stale
     showPyramidResult(card, drinkVal);
-  }, 950);
+  }, 1300);
 }
 
 function showPyramidResult(card, drinkVal) {
