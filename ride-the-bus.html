@@ -133,6 +133,25 @@
     @keyframes pyrFlagPop { from { transform: translateX(-50%) scale(0.3); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
     @keyframes pyrFlagBounce { from { transform: translateX(-50%) translateY(0); } to { transform: translateX(-50%) translateY(-3px); } }
 
+    /* "Crown the loser" standings before the bus */
+    .crown-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 11px; border-radius: 12px; margin-bottom: 7px;
+      background: var(--surface); border: 1px solid var(--hairline);
+    }
+    .crown-row.loser {
+      background: rgba(240,180,41,0.13); border-color: var(--gold);
+      box-shadow: 0 0 16px rgba(240,180,41,0.25);
+    }
+    .crown-rank { font-size: 1.15rem; font-weight: 900; width: 30px; text-align: center; color: var(--muted); flex-shrink: 0; }
+    .crown-row.loser .crown-rank { color: var(--gold); }
+    .crown-name { font-weight: 800; color: var(--text); flex-shrink: 0; }
+    .crown-tag {
+      font-size: 0.58rem; font-weight: 800; color: #1a1206; background: var(--gold);
+      padding: 1px 6px; border-radius: 6px; margin-left: 5px; white-space: nowrap; vertical-align: middle;
+    }
+    .crown-hand { margin-left: auto; text-align: right; display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; align-items: center; }
+
     /* Phase 3 */
     .bus-rider-display {
       text-align: center;
@@ -468,9 +487,6 @@
           <div class="notif-title" id="bus-result-title"></div>
           <div id="bus-result-desc"></div>
         </div>
-        <div class="mt-16 hidden" id="bus-next-area">
-          <button class="btn btn-gold w-full" onclick="nextBusStep()">Next →</button>
-        </div>
       </div>
 
       <div class="flex gap-8 mt-16" style="justify-content:center; flex-wrap:wrap;">
@@ -480,6 +496,31 @@
     </div>
 
   </div><!-- /game-area -->
+
+  <!-- "Crown the loser" standings before the bus -->
+  <div class="rtb-overlay hidden" id="bus-crown-modal">
+    <div class="rtb-modal" id="bus-crown-inner" style="max-width:460px;">
+      <div class="rtb-modal-title" style="color:var(--gold);">🚌 Who rides the bus?</div>
+      <div class="rtb-modal-desc" id="bus-crown-sub" style="margin-bottom:14px;"></div>
+      <div id="bus-crown-list" style="text-align:left;"></div>
+      <div class="rtb-modal-btns" style="margin-top:18px;">
+        <button class="btn btn-gold btn-lg" onclick="startBusRideFromCrown()">🚌 Ride the Bus →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bus event popup (wrong guess → drink) -->
+  <div class="rtb-overlay hidden" id="bus-modal">
+    <div class="rtb-modal" id="bus-modal-inner">
+      <div class="rtb-modal-icon" id="bus-modal-icon"></div>
+      <div id="bus-modal-card" style="display:flex; justify-content:center; margin-bottom:10px;"></div>
+      <div class="rtb-modal-title" id="bus-modal-title"></div>
+      <div class="rtb-modal-desc" id="bus-modal-desc"></div>
+      <div class="rtb-modal-btns">
+        <button class="btn btn-gold btn-lg" id="bus-modal-btn" onclick="busModalResume()"></button>
+      </div>
+    </div>
+  </div>
 
   <!-- Off-the-bus popup -->
   <div class="rtb-overlay hidden" id="bus-win-overlay">
@@ -555,6 +596,7 @@ let busPtr = 0;           // current pile index
 let busWrongs = 0;        // wrong guesses this ride (= sips taken)
 let busFlips = 0;         // total cards flipped this ride
 let busTransitionTimer = null;
+let busEpoch = 0;         // bumped on new ride / new game so stale auto-advance timers no-op
 
 // ─── Setup ───
 // 4 cards per player + 15 pyramid cards must fit in one 52-card deck → max 9 players
@@ -848,7 +890,7 @@ function flipPyramidCard() {
     pyrMatchValue = null;
     pyrCol++;
     if (pyrCol >= pyramid[pyrRow].length) { pyrCol = 0; pyrRow++; }
-    if (pyrRow >= pyramid.length) { beginPhase3(); return; }
+    if (pyrRow >= pyramid.length) { showBusCrown(); return; } // pyramid done → crown the loser
   }
 
   const cell = pyramid[pyrRow][pyrCol];
@@ -992,6 +1034,45 @@ function renderP2Players() {
     </div>`).join('');
 }
 
+// ─── Crown the loser (standings before the bus) ───
+// Who rides: most cards, tiebreak by most of a single suit
+function computeBusRiders() {
+  const maxCards = Math.max(...players.map(p => p.hand.length));
+  const candidates = players.filter(p => p.hand.length === maxCards);
+  if (candidates.length === 1) return [candidates[0]];
+  const maxSuitCount = (p) => Math.max(...SUITS.map(s => p.hand.filter(c => c.suit === s).length));
+  const maxSuit = Math.max(...candidates.map(maxSuitCount));
+  return candidates.filter(p => maxSuitCount(p) === maxSuit);
+}
+
+function showBusCrown() {
+  p2Epoch++; // orphan any pending pyramid timer
+  const riders = computeBusRiders();
+  const riderSet = new Set(riders);
+  const sorted = [...players].sort((a, b) => b.hand.length - a.hand.length);
+
+  document.getElementById('bus-crown-list').innerHTML = sorted.map((p, i) => {
+    const isLoser = riderSet.has(p);
+    return `<div class="crown-row${isLoser ? ' loser' : ''}">
+      <div class="crown-rank">${isLoser ? '👑' : '#' + (i + 1)}</div>
+      <div class="crown-name">${p.name}${isLoser ? '<span class="crown-tag">RIDES</span>' : ''}</div>
+      <div class="crown-hand">${handSummary(p)}</div>
+    </div>`;
+  }).join('');
+
+  const names = riders.map(r => r.name).join(' & ');
+  document.getElementById('bus-crown-sub').innerHTML = riders.length > 1
+    ? `<strong>${names}</strong> tied with the most cards — they all ride! 🚌`
+    : `<strong>${names}</strong> is stuck with the most cards.`;
+
+  document.getElementById('bus-crown-modal').classList.remove('hidden');
+}
+
+function startBusRideFromCrown() {
+  document.getElementById('bus-crown-modal').classList.add('hidden');
+  beginPhase3();
+}
+
 // ─── Phase 3 ───
 function beginPhase3() {
   setPhaseStep(3);
@@ -1000,17 +1081,7 @@ function beginPhase3() {
   document.getElementById('phase3').classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // Find who rides: most cards, tiebreak by most of a single suit
-  const maxCards = Math.max(...players.map(p => p.hand.length));
-  const candidates = players.filter(p => p.hand.length === maxCards);
-  if (candidates.length === 1) {
-    busRiders = [candidates[0]];
-  } else {
-    const maxSuitCount = (p) => Math.max(...SUITS.map(s => p.hand.filter(c => c.suit === s).length));
-    const maxSuit = Math.max(...candidates.map(maxSuitCount));
-    busRiders = candidates.filter(p => maxSuitCount(p) === maxSuit);
-  }
-
+  busRiders = computeBusRiders();
   busRiderIdx = 0;
   startBusRide();
 }
@@ -1027,6 +1098,7 @@ function busReference() {
 }
 
 function startBusRide() {
+  busEpoch++; // any pending auto-advance timer from a previous ride is now stale
   const rider = busRiders[busRiderIdx];
   busLength = Math.max(rider.hand.length, 1);
   busPiles = Array.from({ length: busLength }, () => ({ cards: [] }));
@@ -1034,6 +1106,7 @@ function startBusRide() {
 
   document.getElementById('bus-rider-name').textContent = `🚌 ${rider.name}`;
   document.getElementById('bus-win-overlay').classList.add('hidden');
+  document.getElementById('bus-modal').classList.add('hidden');
   document.getElementById('bus-question-box').style.display = '';
   renderBusPiles();
   askBusQuestion();
@@ -1056,7 +1129,6 @@ function renderBusPiles(justFlipped = -1) {
 
 function askBusQuestion() {
   document.getElementById('bus-result').classList.add('hidden');
-  document.getElementById('bus-next-area').classList.add('hidden');
 
   const ref = busReference();
   let label, q;
@@ -1076,17 +1148,8 @@ function askBusQuestion() {
 function answerBus(answer) {
   document.querySelectorAll('#bus-q-buttons button').forEach(b => b.disabled = true);
 
-  // Deck ran out → reshuffle, re-deal all piles face down, restart at Red/Black
-  if (!deck.length) {
-    deck = shuffle(createDeck());
-    busPiles = Array.from({ length: busLength }, () => ({ cards: [] }));
-    busPtr = 0;
-    renderBusPiles();
-    showBusResult('info', '🔄 Deck ran out!', 'Re-dealing the piles face down — back to the first pile and Red or Black.');
-    document.getElementById('bus-next-area').classList.remove('hidden');
-    revealEl('bus-next-area');
-    return;
-  }
+  // Deck ran out → reshuffle the discards back in and keep the SAME bus going
+  if (!deck.length) refillBusDeck();
 
   const ref = busReference();
   const card = deck.pop();
@@ -1112,22 +1175,37 @@ function answerBus(answer) {
   if (correct) {
     busPtr++;
     renderBusPiles();
-    if (isSame) {
-      showBusResult('info', '😮 SAME — correct!', `${card.value}${card.suit}. Everyone EXCEPT ${rider} drinks 1! 🍺 On to the next pile.`);
-    } else {
-      showBusResult('success', '✅ Correct!', `${card.value}${card.suit}. On to the next pile.`);
-    }
     if (busPtr >= busLength) { showBusWin(); return; }
-    document.getElementById('bus-next-area').classList.remove('hidden');
-    revealEl('bus-next-area');
+    // Correct → auto-advance to the next pile (no button to click)
+    if (isSame) {
+      showBusResult('info', '😮 SAME — correct!', `${card.value}${card.suit}. Everyone EXCEPT ${rider} drinks 1! 🍺 Next pile…`);
+    } else {
+      showBusResult('success', '✅ Correct!', `${card.value}${card.suit}. On to the next pile…`);
+    }
+    const ep = busEpoch;
+    clearTimeout(busTransitionTimer);
+    busTransitionTimer = setTimeout(() => {
+      if (ep !== busEpoch) return; // new ride / new game — stale
+      askBusQuestion();
+    }, isSame ? 1700 : 1050);
   } else {
+    // Wrong → popup; player taps "Drank", then the bus resumes from pile 1
     busWrongs++;
     busPtr = 0;
     renderBusPiles();
-    showBusResult('danger', '❌ Wrong — drink 1!', `${card.value}${card.suit}. Back to the first pile — walk the bus again.`);
-    document.getElementById('bus-next-area').classList.remove('hidden');
-    revealEl('bus-next-area');
+    showBusModal(card, '❌ Wrong — Drink 1!', `${rider} flipped ${card.value}${card.suit}. Drink 1 and walk the bus again from pile 1.`, '🍺 Drank');
   }
+}
+
+// Deck empty mid-bus: reshuffle the buried (discarded) pile cards, keep each
+// pile's visible top card and the current pointer, and carry on.
+function refillBusDeck() {
+  const pool = [];
+  busPiles.forEach(pile => {
+    while (pile.cards.length > 1) pool.push(pile.cards.shift());
+  });
+  deck = shuffle(pool.length ? pool : createDeck());
+  renderBusPiles();
 }
 
 function showBusResult(type, title, desc) {
@@ -1138,7 +1216,20 @@ function showBusResult(type, title, desc) {
   document.getElementById('bus-result-desc').textContent = desc;
 }
 
-function nextBusStep() { askBusQuestion(); }
+function showBusModal(card, title, desc, btnLabel) {
+  document.getElementById('bus-modal-inner').className = 'rtb-modal wrong';
+  document.getElementById('bus-modal-icon').textContent = '';
+  document.getElementById('bus-modal-card').innerHTML = card ? cardHTML(card, 'flipped-reveal') : '';
+  document.getElementById('bus-modal-title').textContent = title;
+  document.getElementById('bus-modal-desc').textContent = desc;
+  document.getElementById('bus-modal-btn').textContent = btnLabel;
+  document.getElementById('bus-modal').classList.remove('hidden');
+}
+
+function busModalResume() {
+  document.getElementById('bus-modal').classList.add('hidden');
+  askBusQuestion();
+}
 
 function showBusWin() {
   const rider = busRiders[busRiderIdx].name;
@@ -1172,8 +1263,11 @@ function setPhaseStep(n) {
 
 function resetGame() {
   p2Epoch++; // orphan any pending pyramid auto-draw timer
+  busEpoch++; // orphan any pending bus auto-advance timer
   clearTimeout(busTransitionTimer);
   document.getElementById('bus-win-overlay').classList.add('hidden');
+  document.getElementById('bus-crown-modal').classList.add('hidden');
+  document.getElementById('bus-modal').classList.add('hidden');
   document.getElementById('deal-result-overlay').classList.add('hidden');
   document.getElementById('pyr-modal').classList.add('hidden');
   document.getElementById('pyr-begin-modal').classList.add('hidden');
