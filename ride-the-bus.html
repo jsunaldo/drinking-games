@@ -240,8 +240,8 @@
     .hs-red { color: #ff6b6b; }
     .hs-blk { color: #d6deec; }
     .hs-empty { color: var(--muted); font-style: italic; }
-    /* let the pyramid result modal scroll if a lot of gives/players */
-    #pyr-modal-inner, #bus-win-overlay .rtb-modal { max-height: 88vh; overflow-y: auto; }
+    /* let the tall modals scroll if a lot of gives/players */
+    #pyr-modal-inner, #bus-crown-inner, #bus-win-overlay .rtb-modal { max-height: 88vh; overflow-y: auto; }
 
     /* ── Bus ride pile row ── */
     .bus-pile-row {
@@ -415,6 +415,11 @@
 
   <!-- Game area -->
   <div id="game-area" class="hidden">
+    <!-- Top controls (same pattern as Kings — always reachable, never below the game) -->
+    <div class="flex gap-8" style="justify-content:flex-end; margin-bottom:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="resetGame()">New Game</button>
+      <a class="btn btn-ghost btn-sm" href="index.html">🏠 Home</a>
+    </div>
     <div class="phase-steps">
       <div class="phase-step active" id="ps-1">① Deal</div>
       <div class="phase-step" id="ps-2">② Pyramid</div>
@@ -489,10 +494,6 @@
         </div>
       </div>
 
-      <div class="flex gap-8 mt-16" style="justify-content:center; flex-wrap:wrap;">
-        <button class="btn btn-ghost" onclick="resetGame()">New Game</button>
-        <a class="btn btn-ghost" href="index.html">🏠 Home</a>
-      </div>
     </div>
 
   </div><!-- /game-area -->
@@ -784,7 +785,9 @@ function answerQuestion(answer) {
 }
 
 function dealResultNext() {
-  document.getElementById('deal-result-overlay').classList.add('hidden');
+  const m = document.getElementById('deal-result-overlay');
+  if (m.classList.contains('hidden')) return; // double-tap guard — a double fire would skip a player
+  m.classList.add('hidden');
   nextDealStep();
 }
 
@@ -852,7 +855,9 @@ function beginPhase2() {
 }
 
 function startPyramid() {
-  document.getElementById('pyr-begin-modal').classList.add('hidden');
+  const m = document.getElementById('pyr-begin-modal');
+  if (m.classList.contains('hidden')) return; // double-tap guard
+  m.classList.add('hidden');
   flipPyramidCard();
 }
 
@@ -874,7 +879,8 @@ function renderPyramid() {
             const isMatch = isActive && pyrMatchValue !== null;
             const flag = isMatch ? `<div class="pyr-match-flag">🍺 MATCH!</div>` : '';
             const cls = 'pyr-cell' + (isActive ? (isMatch ? ' active match' : ' active') : '');
-            return `<div class="${cls}" style="position:relative;">${cardHTML(tc, 'sm just-flipped')}${badge}${flag}</div>`;
+            // flip-in animation only on the cell that was just flipped — the rest render static
+            return `<div class="${cls}" style="position:relative;">${cardHTML(tc, 'sm' + (isActive ? ' flipped-reveal' : ''))}${badge}${flag}</div>`;
           }).join('')}
         </div>
       </div>`;
@@ -1019,7 +1025,9 @@ function assignGive(giveIdx, receiverIdx) {
 }
 
 function pyrModalNext() {
-  document.getElementById('pyr-modal').classList.add('hidden');
+  const m = document.getElementById('pyr-modal');
+  if (m.classList.contains('hidden')) return; // double-tap guard — a double fire would skip a cell
+  m.classList.add('hidden');
   flipPyramidCard(); // advances to the next cell (pyrAdvancing is true)
 }
 
@@ -1049,7 +1057,10 @@ function showBusCrown() {
   p2Epoch++; // orphan any pending pyramid timer
   const riders = computeBusRiders();
   const riderSet = new Set(riders);
-  const sorted = [...players].sort((a, b) => b.hand.length - a.hand.length);
+  // Most cards first; among equal counts the crowned rider(s) sort to the top
+  // (the suit tiebreak can crown someone the count alone wouldn't put first)
+  const sorted = [...players].sort((a, b) =>
+    b.hand.length - a.hand.length || riderSet.has(b) - riderSet.has(a));
 
   document.getElementById('bus-crown-list').innerHTML = sorted.map((p, i) => {
     const isLoser = riderSet.has(p);
@@ -1069,7 +1080,9 @@ function showBusCrown() {
 }
 
 function startBusRideFromCrown() {
-  document.getElementById('bus-crown-modal').classList.add('hidden');
+  const m = document.getElementById('bus-crown-modal');
+  if (m.classList.contains('hidden')) return; // double-tap guard
+  m.classList.add('hidden');
   beginPhase3();
 }
 
@@ -1227,7 +1240,9 @@ function showBusModal(card, title, desc, btnLabel) {
 }
 
 function busModalResume() {
-  document.getElementById('bus-modal').classList.add('hidden');
+  const m = document.getElementById('bus-modal');
+  if (m.classList.contains('hidden')) return; // double-tap guard
+  m.classList.add('hidden');
   askBusQuestion();
 }
 
